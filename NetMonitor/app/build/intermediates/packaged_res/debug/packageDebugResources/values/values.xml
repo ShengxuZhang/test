@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bad">#C62828</color>
+    <color name="brand">#1565C0</color>
+    <color name="gray_text">#8A8A8A</color>
+    <color name="warn">#E65100</color>
+    <string name="app_name">网络监测</string>
+    <string name="export_log">导出日志</string>
+    <string name="no_events">暂无事件</string>
+    <string name="none">—</string>
+    <string name="speed_test">测速</string>
+    <string name="start_monitor">开始监测</string>
+    <string name="stat_avg">平均</string>
+    <string name="stat_jitter">抖动</string>
+    <string name="stat_loss">丢包</string>
+    <string name="stat_max">最大</string>
+    <string name="subtitle">持续探测延迟 / 丢包 / 网络切换，帮助定位卡顿时段</string>
+    <string name="view_log">查看日志</string>
+    <string name="zero_ms">0ms</string>
+    <string name="zero_pct">0.0%%</string>
+    <style name="Theme.NetMonitor" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand</item>
+        <item name="android:statusBarColor">@color/brand</item>
+    </style>
+</resources>

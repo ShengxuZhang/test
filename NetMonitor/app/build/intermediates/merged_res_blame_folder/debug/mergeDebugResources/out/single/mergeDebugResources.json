@@ -1,0 +1,34 @@
+[
+    {
+        "merged": "com.example.netmonitor.app-debug-34:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.example.netmonitor.app-main-36:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.example.netmonitor.app-debug-34:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.example.netmonitor.app-main-36:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "com.example.netmonitor.app-debug-34:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.example.netmonitor.app-main-36:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.example.netmonitor.app-debug-34:/layout_activity_main.xml.flat",
+        "source": "com.example.netmonitor.app-main-36:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.example.netmonitor.app-debug-34:/layout_activity_log.xml.flat",
+        "source": "com.example.netmonitor.app-main-36:/layout/activity_log.xml"
+    },
+    {
+        "merged": "com.example.netmonitor.app-debug-34:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.example.netmonitor.app-main-36:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.example.netmonitor.app-debug-34:/drawable_ic_stat_signal.xml.flat",
+        "source": "com.example.netmonitor.app-main-36:/drawable/ic_stat_signal.xml"
+    },
+    {
+        "merged": "com.example.netmonitor.app-debug-34:/layout_item_log.xml.flat",
+        "source": "com.example.netmonitor.app-main-36:/layout/item_log.xml"
+    }
+]

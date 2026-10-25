@@ -1,0 +1,26 @@
+[
+    {
+        "merged": "com.screencontrol.app-debug-31:/xml_accessibility_service_config.xml.flat",
+        "source": "com.screencontrol.app-main-33:/xml/accessibility_service_config.xml"
+    },
+    {
+        "merged": "com.screencontrol.app-debug-31:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.screencontrol.app-main-33:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.screencontrol.app-debug-31:/layout_activity_viewer.xml.flat",
+        "source": "com.screencontrol.app-main-33:/layout/activity_viewer.xml"
+    },
+    {
+        "merged": "com.screencontrol.app-debug-31:/layout_activity_main.xml.flat",
+        "source": "com.screencontrol.app-main-33:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.screencontrol.app-debug-31:/layout_activity_host.xml.flat",
+        "source": "com.screencontrol.app-main-33:/layout/activity_host.xml"
+    },
+    {
+        "merged": "com.screencontrol.app-debug-31:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.screencontrol.app-main-33:/drawable/ic_launcher_foreground.xml"
+    }
+]

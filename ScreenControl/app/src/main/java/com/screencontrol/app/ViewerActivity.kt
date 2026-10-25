@@ -8,6 +8,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.screencontrol.app.net.Protocol
@@ -17,24 +18,28 @@ import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.net.Inet4Address
 import java.net.InetSocketAddress
+import java.net.NetworkInterface
 import java.net.Socket
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
-import android.net.nsd.NsdManager
-import android.net.nsd.NsdServiceInfo
 
 /**
  * 控制端（平板）：
- * - 连接被控端 TCP，接收 H.264 流解码渲染到 SurfaceView；
- * - 把画面上的触摸事件换算为归一化坐标发送给被控端注入；
- * - 顶部按钮可发送 返回/主页/多任务。
+ * - 进入页面后自动扫描同一局域网网段内开启投屏服务的设备（TCP 端口探测，不依赖 mDNS）；
+ * - 只发现一台时自动连接，多台时点击列表选择；
+ * - 连接后接收 H.264 流解码渲染，并把触摸事件换算为归一化坐标发送给被控端注入。
  */
 class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private lateinit var surfaceView: SurfaceView
     private lateinit var panelConnect: View
     private lateinit var tvStatus: TextView
-    private lateinit var tvDevices: TextView
+    private lateinit var tvScanStatus: TextView
+    private lateinit var deviceList: LinearLayout
     private lateinit var etIp: EditText
     private lateinit var etPin: EditText
 
@@ -57,8 +62,10 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var streamH = 720
     private var lastMoveSent = 0L
 
-    private var nsdManager: NsdManager? = null
-    private var discoveryListener: NsdManager.DiscoveryListener? = null
+    private val found = ConcurrentLinkedQueue<String>()
+
+    @Volatile
+    private var scanning = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,20 +75,20 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         surfaceView = findViewById(R.id.surfaceView)
         panelConnect = findViewById(R.id.panelConnect)
         tvStatus = findViewById(R.id.tvViewerStatus)
-        tvDevices = findViewById(R.id.tvDevices)
+        tvScanStatus = findViewById(R.id.tvScanStatus)
+        deviceList = findViewById(R.id.deviceList)
         etIp = findViewById(R.id.etIp)
         etPin = findViewById(R.id.etPin)
 
         surfaceView.holder.addCallback(this)
-
         surfaceView.setOnTouchListener { v, e -> handleTouch(v, e) }
+
+        findViewById<Button>(R.id.btnScan).setOnClickListener { startScan() }
 
         findViewById<Button>(R.id.btnConnect).setOnClickListener {
             val ip = etIp.text.toString().trim()
             if (ip.isNotEmpty()) startConnect(ip, etPin.text.toString().ifBlank { "123456" })
         }
-
-        findViewById<Button>(R.id.btnDiscover).setOnClickListener { startDiscover() }
 
         findViewById<Button>(R.id.btnDisconnect).setOnClickListener { disconnect() }
 
@@ -89,6 +96,104 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         findViewById<Button>(R.id.btnBack).setOnClickListener { sendKey("back") }
         findViewById<Button>(R.id.btnHome).setOnClickListener { sendKey("home") }
         findViewById<Button>(R.id.btnRecents).setOnClickListener { sendKey("recents") }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!connected && !scanning) startScan()
+    }
+
+    // ---------------- 局域网扫描 ----------------
+
+    /** 扫描本机所在 /24 网段的 4747 端口，找出开了投屏服务的设备 */
+    private fun startScan() {
+        if (scanning || connected) return
+        scanning = true
+        found.clear()
+        deviceList.removeAllViews()
+        tvScanStatus.text = "正在扫描局域网…"
+
+        val myIp = localLanIp()
+        if (myIp == null) {
+            tvScanStatus.text = "未检测到 Wi-Fi 网络，请确认平板已连接 Wi-Fi"
+            scanning = false
+            return
+        }
+        val prefix = myIp.substringBeforeLast('.') + "."
+
+        val pool = Executors.newFixedThreadPool(64)
+        val done = AtomicInteger()
+        val total = 254
+        for (i in 1..254) {
+            val ip = prefix + i
+            if (ip == myIp) {
+                if (done.incrementAndGet() == total) pool.shutdown()
+                continue
+            }
+            pool.execute {
+                try {
+                    val s = Socket()
+                    s.connect(InetSocketAddress(ip, Protocol.PORT), 250)
+                    found.add(ip)
+                    runOnUiThread {
+                        addDeviceButton(ip)
+                        tvScanStatus.text = "发现设备：${found.size} 台"
+                    }
+                    try { s.close() } catch (_: Exception) {}
+                } catch (_: Exception) {
+                } finally {
+                    if (done.incrementAndGet() == total) {
+                        pool.shutdown()
+                        runOnUiThread { onScanFinished() }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun onScanFinished() {
+        scanning = false
+        val list = found.toList()
+        when {
+            list.isEmpty() -> tvScanStatus.text =
+                "未发现被控端。请确认：\n1. 手机端已点击「开始投屏」并授权\n2. 两台设备连接同一 Wi-Fi\n3. 路由器未开启「AP 隔离/访客网络」"
+            list.size == 1 -> {
+                tvScanStatus.text = "发现设备 ${list[0]}，正在连接…"
+                startConnect(list[0], etPin.text.toString().ifBlank { "123456" })
+            }
+            else -> tvScanStatus.text = "发现 ${list.size} 台设备，请点击列表中的按钮连接"
+        }
+    }
+
+    private fun addDeviceButton(ip: String) {
+        val b = Button(this)
+        b.text = "连接 $ip"
+        b.setOnClickListener {
+            startConnect(ip, etPin.text.toString().ifBlank { "123456" })
+        }
+        deviceList.addView(b)
+    }
+
+    /** 取本机局域网 IPv4，优先私网地址 */
+    private fun localLanIp(): String? {
+        val candidates = ArrayList<String>()
+        try {
+            val en = NetworkInterface.getNetworkInterfaces()
+            while (en.hasMoreElements()) {
+                val nif = en.nextElement()
+                if (!nif.isUp || nif.isLoopback) continue
+                for (addr in nif.inetAddresses) {
+                    if (addr is Inet4Address && !addr.isLoopbackAddress) {
+                        addr.hostAddress?.let { candidates.add(it) }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return candidates.firstOrNull { it.startsWith("192.168.") }
+            ?: candidates.firstOrNull { it.startsWith("10.") }
+            ?: candidates.firstOrNull { it.startsWith("172.") }
+            ?: candidates.firstOrNull()
     }
 
     // ---------------- 连接 ----------------
@@ -115,8 +220,17 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
             } catch (e: Exception) {
                 runOnUiThread {
                     tvStatus.text = "连接失败：${e.message ?: e.javaClass.simpleName}"
+                    tvScanStatus.text =
+                        "连接 $ip 失败（${e.message ?: "超时"}）。\n若是密码错误请修改密码后重试；否则请确认手机端投屏仍在运行。"
+                    panelConnect.visibility = View.VISIBLE
                 }
-                disconnect()
+                connected = false
+                try {
+                    socket?.close()
+                } catch (_: Exception) {
+                }
+                socket = null
+                out = null
             }
         }
     }
@@ -245,60 +359,6 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
-    // ---------------- NSD 局域网发现 ----------------
-
-    private fun startDiscover() {
-        val nsd = nsdManager ?: getSystemService(NsdManager::class.java)?.also { nsdManager = it }
-        if (nsd == null) {
-            tvDevices.text = "设备发现不可用，请手动输入 IP"
-            return
-        }
-        stopDiscover()
-        tvDevices.text = "搜索中…"
-        val found = HashSet<String>()
-        val listener = object : NsdManager.DiscoveryListener {
-            override fun onDiscoveryStarted(serviceType: String) {}
-            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                runOnUiThread { tvDevices.text = "搜索失败，请手动输入 IP" }
-            }
-            override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                nsd.resolveService(serviceInfo, object : NsdManager.ResolveListener {
-                    override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {}
-                    override fun onServiceResolved(info: NsdServiceInfo) {
-                        val host = info.host?.hostAddress ?: return
-                        val name = info.serviceName
-                        if (found.add("$name|$host")) {
-                            runOnUiThread {
-                                tvDevices.append("$name\nIP: $host\n\n")
-                                etIp.setText(host)
-                            }
-                        }
-                    }
-                })
-            }
-            override fun onServiceLost(serviceInfo: NsdServiceInfo) {}
-            override fun onDiscoveryStopped(serviceType: String) {}
-            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
-        }
-        discoveryListener = listener
-        try {
-            nsd.discoverServices(Protocol.NSD_SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
-        } catch (e: Exception) {
-            tvDevices.text = "搜索失败，请手动输入 IP"
-        }
-    }
-
-    private fun stopDiscover() {
-        val nsd = nsdManager ?: return
-        discoveryListener?.let {
-            try {
-                nsd.stopServiceDiscovery(it)
-            } catch (_: Exception) {
-            }
-        }
-        discoveryListener = null
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         connected = false
@@ -308,6 +368,5 @@ class ViewerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
         decoder?.release()
         decoder = null
-        stopDiscover()
     }
 }

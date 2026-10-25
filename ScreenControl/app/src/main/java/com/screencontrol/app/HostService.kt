@@ -11,8 +11,6 @@ import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
-import android.net.nsd.NsdManager
-import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -64,8 +62,6 @@ class HostService : Service() {
     private var encoder: ScreenEncoder? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var serverSocket: ServerSocket? = null
-    private var nsdManager: NsdManager? = null
-    private var nsdListener: NsdManager.RegistrationListener? = null
 
     @Volatile
     private var client: Socket? = null
@@ -174,7 +170,6 @@ class HostService : Service() {
             try {
                 val ss = ServerSocket(Protocol.PORT)
                 serverSocket = ss
-                registerNsd(Protocol.PORT)
                 while (running && !ss.isClosed) {
                     val s = ss.accept()
                     s.tcpNoDelay = true
@@ -273,40 +268,9 @@ class HostService : Service() {
         }
     }
 
-    private fun registerNsd(port: Int) {
-        try {
-            val nsd = getSystemService(NsdManager::class.java) ?: return
-            nsdManager = nsd
-            val info = NsdServiceInfo().apply {
-                serviceName = "ScreenCtl-${Build.MODEL}"
-                serviceType = Protocol.NSD_SERVICE_TYPE
-                setPort(port)
-            }
-            val listener = object : NsdManager.RegistrationListener {
-                override fun onServiceRegistered(serviceInfo: NsdServiceInfo) {}
-                override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {}
-                override fun onServiceUnregistered(serviceInfo: NsdServiceInfo) {}
-                override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {}
-            }
-            nsdListener = listener
-            nsd.registerService(info, NsdManager.PROTOCOL_DNS_SD, listener)
-        } catch (e: Exception) {
-            Log.w(TAG, "nsd register failed", e)
-        }
-    }
-
-    private fun unregisterNsd() {
-        try {
-            nsdListener?.let { nsdManager?.unregisterService(it) }
-        } catch (_: Exception) {
-        }
-        nsdListener = null
-    }
-
     override fun onDestroy() {
         running = false
         statusText = "未启动"
-        unregisterNsd()
         try {
             serverSocket?.close()
         } catch (_: Exception) {

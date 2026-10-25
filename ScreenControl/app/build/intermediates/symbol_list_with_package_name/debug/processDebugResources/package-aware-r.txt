@@ -3099,10 +3099,10 @@ id btnA11y
 id btnBack
 id btnConnect
 id btnDisconnect
-id btnDiscover
 id btnHome
 id btnHost
 id btnRecents
+id btnScan
 id btnStart
 id btnStop
 id btnViewer
@@ -3149,6 +3149,7 @@ id design_menu_item_action_area
 id design_menu_item_action_area_stub
 id design_menu_item_text
 id design_navigation_view
+id deviceList
 id dialog_button
 id dimensions
 id direct
@@ -3460,8 +3461,8 @@ id transition_scene_layoutid_cache
 id transition_transform
 id triangle
 id tvA11y
-id tvDevices
 id tvIp
+id tvScanStatus
 id tvStatus
 id tvViewerStatus
 id unchecked
@@ -3720,8 +3721,8 @@ string btn_become_host
 string btn_become_viewer
 string btn_connect
 string btn_disconnect
-string btn_discover
 string btn_open_a11y
+string btn_scan
 string btn_start_share
 string btn_stop_share
 string call_notification_answer_action
@@ -3866,6 +3867,7 @@ string side_sheet_behavior
 string status_bar_notification_info_overflow
 string usage_help
 string viewer_ip_hint
+string viewer_manual
 string viewer_pin_hint
 string viewer_status
 string viewer_title

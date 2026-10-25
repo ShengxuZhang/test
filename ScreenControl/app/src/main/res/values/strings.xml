@@ -4,7 +4,7 @@
     <string name="main_title">局域网投屏遥控</string>
     <string name="btn_become_host">手机端：投出屏幕并被控制</string>
     <string name="btn_become_viewer">平板端：观看并控制对方</string>
-    <string name="usage_help">使用方法：\n1. 两台设备安装本应用，并连接同一 Wi-Fi；\n2. 手机端进入「投出屏幕」，授权录屏并开启无障碍服务；\n3. 平板端进入「观看控制」，输入手机上显示的 IP 和密码连接；\n4. 连接后可直接在画面上点击、长按、滑动，顶部按钮可发送返回/主页/多任务。</string>
+    <string name="usage_help">使用方法：\n1. 两台设备安装本应用，并连接同一 Wi-Fi；\n2. 手机端进入「投出屏幕」，授权录屏并开启无障碍服务；\n3. 平板端进入「观看控制」，会自动扫描并连接手机（也可手动输入 IP）；\n4. 连接后可直接在画面上点击、长按、滑动，顶部按钮可发送返回/主页/多任务。</string>
     <string name="host_title">被控端（手机）</string>
     <string name="host_status">状态：未启动</string>
     <string name="host_ip">本机 IP：-</string>
@@ -14,10 +14,11 @@
     <string name="btn_open_a11y">前往开启无障碍服务</string>
     <string name="host_hint">提示：需在系统「无障碍」设置中开启本应用的无障碍服务，平板的触控才能注入到本机。</string>
     <string name="viewer_title">控制端（平板）</string>
+    <string name="btn_scan">重新扫描设备</string>
+    <string name="viewer_manual">手动连接（一般无需使用）：</string>
     <string name="viewer_ip_hint">被控端 IP 地址</string>
     <string name="viewer_pin_hint">控制密码</string>
-    <string name="btn_connect">连接</string>
-    <string name="btn_discover">搜索局域网设备</string>
+    <string name="btn_connect">手动连接</string>
     <string name="btn_disconnect">断开</string>
     <string name="key_back">返回</string>
     <string name="key_home">主页</string>

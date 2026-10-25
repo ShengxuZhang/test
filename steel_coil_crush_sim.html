@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>钢卷压覆事故 · 三维力学模拟（教学演示）</title>
+<style>
+  :root{
+    --bg:#0d1014; --panel:rgba(16,19,24,.86); --line:#2c313a;
+    --txt:#d7dce3; --dim:#8b93a0; --accent:#e5484d; --blue:#4da3ff; --ok:#46c46e;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;color:var(--txt)}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+  .panel{position:fixed;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:12px 14px;backdrop-filter:blur(6px);font-size:12px;line-height:1.55}
+  #title{top:12px;left:50%;transform:translateX(-50%);text-align:center;padding:8px 18px}
+  #title h1{font-size:15px;font-weight:600;letter-spacing:1px}
+  #title p{font-size:11px;color:var(--dim);margin-top:2px}
+  #ctrl{left:12px;top:70px;width:250px}
+  #data{right:12px;top:70px;width:268px}
+  #logPanel{left:12px;bottom:12px;width:330px;max-height:190px;overflow:hidden}
+  h2{font-size:12px;color:var(--blue);margin-bottom:8px;letter-spacing:1px}
+  .row{display:flex;align-items:center;justify-content:space-between;margin:7px 0;gap:8px}
+  .row label{color:var(--dim);flex-shrink:0}
+  input[type=range]{flex:1;accent-color:var(--blue)}
+  select,button{background:#1a1f27;color:var(--txt);border:1px solid var(--line);
+    border-radius:6px;padding:4px 8px;font-size:12px}
+  button{cursor:pointer;letter-spacing:1px}
+  button.primary{background:#1d4ed8;border-color:#2563eb}
+  button.primary:hover{background:#2151e0}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .btns{display:flex;gap:8px;margin-top:10px}
+  .btns button{flex:1;padding:7px 0}
+  .num{font-family:ui-monospace,Consolas,monospace;color:#fff;font-variant-numeric:tabular-nums}
+  .kv{display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px dashed #232830}
+  .kv b{font-weight:500;color:var(--dim)}
+  .big{font-size:20px;color:var(--accent);font-weight:700}
+  .th{margin:5px 0;display:flex;align-items:center;gap:6px;color:var(--dim)}
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  #chart{margin-top:8px;border:1px solid var(--line);border-radius:6px;background:#0a0d11}
+  .chk{display:flex;align-items:center;gap:6px;color:var(--dim);margin:5px 0}
+  .chk input{accent-color:var(--blue)}
+  #log{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#aeb6c2;white-space:pre-wrap}
+  #log .warn{color:#ffb224}#log .bad{color:var(--accent)}#log .ok{color:var(--ok)}
+  details{margin-top:9px;color:var(--dim)}
+  details summary{cursor:pointer;color:var(--blue);font-size:11px}
+  details p{margin:5px 0;font-family:ui-monospace,monospace;font-size:11px}
+  #note{position:fixed;bottom:12px;right:12px;width:268px;font-size:11px;color:var(--dim)}
+  #note b{color:#ffb224}
+  @media (max-width:900px){#data,#note{display:none}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="title" class="panel">
+  <h1>钢卷压覆人体 · 三维接触力学模拟</h1>
+  <p>工业安全教育演示 · 简化准静态模型 · 非真实解剖</p>
+</div>
+
+<div id="ctrl" class="panel">
+  <h2>模拟控制</h2>
+  <div class="row"><label>接触部位</label>
+    <select id="zone">
+      <option value="chest">胸部（肋骨区）</option>
+      <option value="abdomen">腹部</option>
+      <option value="thigh">大腿</option>
+    </select>
+  </div>
+  <div class="row"><label>释放高度</label><input type="range" id="h" min="0" max="2" step="0.05" value="0.6"><span class="num" id="hVal">0.60 m</span></div>
+  <div class="row"><label>钢卷质量</label><input type="range" id="m" min="10" max="50" step="1" value="30"><span class="num" id="mVal">30 t</span></div>
+  <div class="row"><label>时间倍率</label><input type="range" id="ts" min="0.05" max="1" step="0.05" value="1"><span class="num" id="tsVal">1.00×</span></div>
+  <div class="chk"><input type="checkbox" id="heat" checked><label for="heat">压力热力图</label></div>
+  <div class="chk"><input type="checkbox" id="wire"><label for="wire">网格线框</label></div>
+  <div class="btns">
+    <button id="btnStart" class="primary">▶ 释放钢卷</button>
+    <button id="btnReset">↺ 重置</button>
+  </div>
+  <details>
+    <summary>核心力学公式</summary>
+    <p>重力 W = m·g</p>
+    <p>接触半宽 a = √(2Rδ − δ²)</p>
+    <p>接触面积 A = 2a × B</p>
+    <p>平均压强 p̄ = F / A</p>
+    <p>平衡条件 p(ε)·A(ε) = W</p>
+    <p>阻尼 F_d = c_d·A·v（粘弹性）</p>
+  </details>
+</div>
+
+<div id="data" class="panel">
+  <h2>实时物理量</h2>
+  <div class="kv"><b>重力载荷 W</b><span class="num" id="dW">—</span></div>
+  <div class="kv"><b>冲击速度 v</b><span class="num" id="dV">—</span></div>
+  <div class="kv"><b>接触半宽 a</b><span class="num" id="da">—</span></div>
+  <div class="kv"><b>接触面积 A</b><span class="num" id="dA">—</span></div>
+  <div class="kv"><b>平均压强 p̄</b><span class="num big" id="dP">0.000 MPa</span></div>
+  <div class="kv"><b>峰值压强 pₘₐₓ≈4p̄/π</b><span class="num" id="dPk">—</span></div>
+  <div class="kv"><b>压缩率 ε</b><span class="num" id="dEps">0.0 %</span></div>
+  <div class="kv"><b>受压区剩余厚度</b><span class="num" id="dThk">—</span></div>
+  <div class="kv"><b>瞬时接触力峰值</b><span class="num" id="dF">—</span></div>
+  <div class="kv"><b>模拟时间</b><span class="num" id="dT">0.00 s</span></div>
+  <canvas id="chart" width="244" height="120"></canvas>
+  <h2 style="margin-top:10px">组织耐受参考（数量级）</h2>
+  <div class="th"><span class="dot" style="background:#46c46e"></span>长期安全受压 &lt; 0.004 MPa（毛细闭合）</div>
+  <div class="th"><span class="dot" style="background:#ffb224"></span>短时损伤阈值 ≈ 0.1–0.3 MPa</div>
+  <div class="th"><span class="dot" style="background:#e5484d"></span>严重挤压 / 骨结构失效 &gt; 0.5 MPa</div>
+  <div class="th"><span class="dot" style="background:#ff6b6b"></span>本模型静平衡 ≈ 1.0–1.2 MPa</div>
+</div>
+
+<div id="logPanel" class="panel">
+  <h2>事件日志</h2>
+  <div id="log"></div>
+</div>
+
+<div id="note" class="panel">
+  <b>安全警示：</b>本页为力学教学演示（简化模型），不构成医学或事故鉴定依据。
+  实际作业中：人员<b>严禁</b>进入吊运物下方与钢卷堆放区，遵守 GB/T 起重与冶金安全规程。
+</div>
+
+<script type="importmap">
+{ "imports": {
+    "three": "./lib/three.module.min.js",
+    "three/addons/": "./lib/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/OrbitControls.js';
+
+/* ================= 物理参数 ================= */
+const g      = 9.81;                 // 重力加速度 m/s²
+const R      = 1.0;                  // 钢卷外半径 m
+const R_IN   = 0.30;                 // 钢卷内半径 m（钢卷是空心的）
+const L_COIL = 1.34;                 // 钢卷轴向宽度 m
+const RHO    = 7850;                 // 钢密度 kg/m³
+const V_COIL = Math.PI*(R*R-R_IN*R_IN)*L_COIL;   // 卷材实体体积
+const CD     = 6.0e6;                // 组织粘弹性阻尼系数 N·s/m³（单位面积）
+const EPS_MAX = 0.92;                // 最大压缩率（安全钳制）
+const CURVE = [                     // 人体受压区非线性本构 p(ε)（Pa）：软组织→粘连→骨结构失效
+  [0.00,      0], [0.05,  25e3], [0.15,  90e3], [0.30, 220e3],
+  [0.45, 380e3], [0.60, 650e3], [0.75, 1.3e6], [0.85, 2.4e6], [0.92, 4.2e6]
+];
+function pressureAt(eps, scale){
+  for(let i=1;i<CURVE.length;i++){
+    if(eps<=CURVE[i][0]){
+      const [e0,p0]=CURVE[i-1],[e1,p1]=CURVE[i];
+      return (p0+(p1-p0)*(eps-e0)/(e1-e0))*scale;
+    }
+  }
+  return CURVE[CURVE.length-1][1]*scale;
+}
+const ZONES = {
+  chest:  {label:'胸部', cx: 0.05, t0:0.24, cap:0.65, B:0.45, scale:1.00, sigmaMin:0.13},
+  abdomen:{label:'腹部', cx:-0.26, t0:0.21, cap:0.58, B:0.44, scale:0.85, sigmaMin:0.12},
+  thigh:  {label:'大腿', cx:-0.85, t0:0.17, cap:0.79, B:0.32, scale:0.60, sigmaMin:0.14}
+};
+
+/* ================= 场景 ================= */
+const app = document.getElementById('app');
+let renderer;
+try{
+  renderer = new THREE.WebGLRenderer({antialias:true});
+}catch(e){
+  document.getElementById('log').innerHTML =
+    '<span class="bad">[错误] 当前环境不支持 WebGL，无法进行三维渲染。</span>\n' +
+    '请使用本地 Chrome / Edge / Firefox 打开本页面（需启用硬件加速）。';
+  throw e;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1014);
+scene.fog = new THREE.Fog(0x0d1014, 10, 26);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.05, 100);
+camera.position.set(2.7, 2.0, 3.4);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.42, 0);
+controls.enableDamping = true;
+controls.minDistance = 1.0; controls.maxDistance = 14;
+controls.maxPolarAngle = 1.53;
+
+scene.add(new THREE.HemisphereLight(0x8899bb, 0x22262c, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+sun.position.set(4, 7, 3);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-6; sun.shadow.camera.right=6;
+sun.shadow.camera.top=6;   sun.shadow.camera.bottom=-6;
+scene.add(sun);
+
+// 地面
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(24,24),
+  new THREE.MeshStandardMaterial({color:0x565b62, roughness:0.95})
+);
+floor.rotation.x = -Math.PI/2;
+floor.receiveShadow = true;
+scene.add(floor);
+scene.add(new THREE.GridHelper(12, 12, 0x3a3f46, 0x272b31));
+
+/* ---------- 混凝土开裂贴花 ---------- */
+const crackCanvas = document.createElement('canvas');
+crackCanvas.width = crackCanvas.height = 512;
+const crackTex = new THREE.CanvasTexture(crackCanvas);
+const crackMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(2.6, 2.6),
+  new THREE.MeshBasicMaterial({map:crackTex, transparent:true, depthWrite:false})
+);
+crackMesh.rotation.x = -Math.PI/2; crackMesh.position.y = 0.004;
+crackMesh.visible = false;
+scene.add(crackMesh);
+function drawCracks(cx){
+  const ctx = crackCanvas.getContext('2d');
+  ctx.clearRect(0,0,512,512);
+  ctx.translate(256,256);
+  ctx.strokeStyle = 'rgba(15,15,17,0.9)'; ctx.lineCap='round';
+  for(let i=0;i<16;i++){
+    const ang = Math.random()*Math.PI*2;
+    let len = 70+Math.random()*160, r=8, a=ang;
+    ctx.lineWidth = 1.5+Math.random()*2.5;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r);
+    for(let s=0;s<8;s++){
+      r += len/8; a += (Math.random()-0.5)*0.9;
+      ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+    }
+    ctx.stroke();
+  }
+  ctx.setTransform(1,0,0,1,0,0);
+  crackTex.needsUpdate = true;
+  crackMesh.position.x = cx;
+  crackMesh.visible = true;
+}
+
+/* ---------- 人体（简化关节体，可形变） ---------- */
+const SKIN = [0.78, 0.63, 0.52];
+const bodyGroup = new THREE.Group(); scene.add(bodyGroup);
+const deformables = [];   // {mesh, orig, bx, bz}
+
+function mat(){ return new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.7, vertexColors:true, wireframe:false}); }
+function makeDeformable(geo, x, y, z, bx, bz, rotZ){
+  if(rotZ) geo.rotateZ(rotZ);
+  const m = new THREE.Mesh(geo, mat());
+  m.position.set(x,y,z);
+  m.castShadow = m.receiveShadow = true;
+  const cnt = geo.attributes.position.count;
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cnt*3),3));
+  bodyGroup.add(m);
+  deformables.push({mesh:m, orig:Float32Array.from(geo.attributes.position.array), bx, bz});
+  return m;
+}
+// 躯干（胸+腹）：胶囊压扁
+const torsoGeo = new THREE.CapsuleGeometry(0.16, 0.45, 6, 28);
+torsoGeo.scale(1.0, 1.5, 1.5);
+makeDeformable(torsoGeo, 0.03, 0.24, 0, 0.30, 0.50, Math.PI/2);
+// 骨盆
+const pelvisGeo = new THREE.CapsuleGeometry(0.14, 0.16, 6, 24);
+pelvisGeo.scale(1.0, 1.25, 1.35);
+makeDeformable(pelvisGeo, -0.42, 0.175, 0, 0.25, 0.45, Math.PI/2);
+// 双腿
+const legGeoL = new THREE.CapsuleGeometry(0.085, 0.62, 5, 20);
+makeDeformable(legGeoL, -0.95, 0.085,  0.10, 0.15, 0.60, Math.PI/2);
+const legGeoR = new THREE.CapsuleGeometry(0.085, 0.62, 5, 20);
+makeDeformable(legGeoR, -0.95, 0.085, -0.10, 0.15, 0.60, Math.PI/2);
+// 头颈手臂（不参与受压形变）
+function plainMesh(geo, x,y,z, rotZ){
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color:0xc7a184, roughness:0.7}));
+  m.position.set(x,y,z); if(rotZ) m.rotation.z = rotZ;
+  m.castShadow = true; bodyGroup.add(m); return m;
+}
+plainMesh(new THREE.SphereGeometry(0.115, 24, 18), 0.60, 0.115, 0);
+plainMesh(new THREE.CapsuleGeometry(0.05, 0.07, 4, 12), 0.475, 0.085, 0, Math.PI/2);
+plainMesh(new THREE.CapsuleGeometry(0.05, 0.50, 4, 12), -0.05, 0.05,  0.285, Math.PI/2);
+plainMesh(new THREE.CapsuleGeometry(0.05, 0.50, 4, 12), -0.05, 0.05, -0.285, Math.PI/2);
+
+/* ---------- 钢卷（环形截面拉伸体） ---------- */
+const coilGroup = new THREE.Group(); scene.add(coilGroup);
+{
+  const shape = new THREE.Shape();
+  shape.absarc(0,0,R,0,Math.PI*2,false);
+  const hole = new THREE.Path();
+  hole.absarc(0,0,R_IN,0,Math.PI*2,true);
+  shape.holes.push(hole);
+  const geo = new THREE.ExtrudeGeometry(shape, {depth:L_COIL, curveSegments:64, bevelEnabled:false});
+  geo.translate(0,0,-L_COIL/2);
+  const steel = new THREE.MeshStandardMaterial({color:0x9aa2ab, metalness:0.88, roughness:0.38});
+  const coil = new THREE.Mesh(geo, steel);
+  coil.castShadow = coil.receiveShadow = true;
+  coilGroup.add(coil);
+  // 内芯暗筒
+  const core = new THREE.Mesh(
+    new THREE.CylinderGeometry(R_IN-0.002, R_IN-0.002, L_COIL*0.999, 48, 1, true),
+    new THREE.MeshStandardMaterial({color:0x14161a, metalness:0.4, roughness:0.9, side:THREE.DoubleSide})
+  );
+  core.rotation.x = Math.PI/2;
+  coilGroup.add(core);
+}
+// 释放高度指示虚线
+const dropLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+const dropLine = new THREE.Line(dropLineGeo, new THREE.LineDashedMaterial({color:0x4da3ff, dashSize:0.06, gapSize:0.05}));
+scene.add(dropLine);
+
+/* ================= 模拟状态 ================= */
+const S = {
+  phase:'ready',     // ready | fall | contact | done
+  running:false,
+  zone:'chest',
+  h:0.6, mass:30000, simSpeed:1,
+  y:0, v:0, t:0, tc:0,
+  eps:0, epsHist:0,
+  a:0, A:0, pAvg:0, maxP:0, maxF:0,
+  floorLoad:0, vImpact:0,
+  flags:{}
+};
+const W = () => S.mass*g;
+
+function resetSim(logMsg=true){
+  const z = ZONES[S.zone];
+  S.phase='ready'; S.running=false; S.y=z.t0+S.h; S.v=0; S.t=0; S.tc=0;
+  S.eps=0; S.epsHist=0; S.a=0; S.A=0; S.pAvg=0; S.maxP=0; S.maxF=0;
+  S.floorLoad=0; S.vImpact=0; S.flags={};
+  coilGroup.position.set(z.cx, S.y+R, 0);
+  crackMesh.visible=false;
+  samples.length=0; lastSampleT=-1;
+  updateDropLine();
+  document.getElementById('btnStart').disabled=false;
+  document.getElementById('btnStart').textContent='▶ 释放钢卷';
+  // 恢复人体网格
+  for(const d of deformables){
+    d.mesh.geometry.attributes.position.array.set(d.orig);
+    d.mesh.geometry.attributes.position.needsUpdate=true;
+    setSkinColors(d);
+    d.mesh.geometry.computeVertexNormals();
+  }
+  if(logMsg) log(`系统就绪 · 钢卷 Ø${(2*R).toFixed(1)} m × ${L_COIL.toFixed(2)} m · 目标部位：${z.label}`, 'ok');
+}
+function updateDropLine(){
+  const z=ZONES[S.zone];
+  dropLineGeo.setFromPoints([
+    new THREE.Vector3(z.cx, z.t0+0.005, 0),
+    new THREE.Vector3(z.cx, z.t0+S.h+0.005, 0)
+  ]);
+  dropLine.computeLineDistances();
+  dropLine.visible = (S.phase==='ready' && S.h>0.02);
+}
+
+/* ================= 形变与热力图 ================= */
+function setSkinColors(d){
+  const c=d.mesh.geometry.attributes.color.array;
+  for(let i=0;i<c.length;i+=3){ c[i]=SKIN[0]; c[i+1]=SKIN[1]; c[i+2]=SKIN[2]; }
+  d.mesh.geometry.attributes.color.needsUpdate=true;
+}
+function applyCrush(eps, cx, sigma, pAvg, heat){
+  for(const d of deformables){
+    const pos=d.mesh.geometry.attributes.position;
+    const col=d.mesh.geometry.attributes.color;
+    const arr=pos.array, o=d.orig, py=d.mesh.position.y;
+    const heatOn = heat && eps>1e-4;
+    for(let i=0;i<arr.length;i+=3){
+      const x0=o[i], y0=o[i+1], z0=o[i+2];
+      const dxw=(x0+d.mesh.position.x-cx)/sigma;
+      const w=Math.exp(-dxw*dxw);
+      const e=eps*w;
+      arr[i]  =x0*(1+d.bx*e);
+      arr[i+1]=y0*(1-e)-py*e;
+      arr[i+2]=z0*(1+d.bz*e);
+      let r,g,b;
+      if(!heatOn){ r=SKIN[0]; g=SKIN[1]; b=SKIN[2]; }
+      else{
+        const pl=pAvg*(e/eps);   // 局部压强（Pa）
+        if(pl<5e5){ const k=pl/5e5; r=0.78+0.17*k; g=0.63+0.12*k; b=0.52-0.42*k; }
+        else{ const k=Math.min((pl-5e5)/1.5e6,1); r=0.95-0.10*k; g=0.75-0.67*k; b=0.10-0.05*k; }
+      }
+      col.array[i]=r; col.array[i+1]=g; col.array[i+2]=b;
+    }
+    pos.needsUpdate=true; col.needsUpdate=true;
+    d.mesh.geometry.computeVertexNormals();
+  }
+}
+
+/* ================= 物理步进 ================= */
+function step(dt){
+  S.t+=dt;
+  const z=ZONES[S.zone];
+  if(S.phase==='fall'){
+    S.v+=g*dt;
+    S.y-=S.v*dt;
+    if(S.y<=z.t0){
+      S.y=z.t0; S.vImpact=S.v; S.phase='contact'; S.tc=0;
+      dropLine.visible=false;
+      log(`接触瞬间：冲击速度 v = ${S.vImpact.toFixed(2)} m/s（自由落体 h=${S.h.toFixed(2)} m）`, 'warn');
+    }
+    return;
+  }
+  if(S.phase==='contact'){
+    S.tc+=dt;
+    const delta=z.t0-S.y;                    // 压入深度
+    S.eps=Math.min(delta/z.t0, EPS_MAX);
+    const aGeo=Math.sqrt(Math.max(2*R*delta-delta*delta,0));
+    const aEff=Math.min(aGeo, z.cap);
+    S.a=aEff;
+    S.A=aEff*z.B;
+    S.pAvg=pressureAt(S.eps, z.scale);
+    const Fbody=S.pAvg*S.A;
+    const Fdamp=CD*S.A*S.v;                  // 粘弹性阻尼（对抗运动）
+    const Ftot=Fbody+Math.max(Fdamp,-Fbody);
+    if(S.eps>=EPS_MAX-1e-6 && Fbody<W()*0.95){
+      S.floorLoad=Math.max(W()-Fbody,0);
+      if(!S.flags.floor && S.floorLoad>1e4){
+        S.flags.floor=true;
+        drawCracks(z.cx);
+        log(`载荷经残留组织传入地面（${(S.floorLoad/1000).toFixed(0)} kN）· 混凝土局部开裂`, 'bad');
+      }
+    }
+    S.maxP=Math.max(S.maxP,S.pAvg);
+    S.maxF=Math.max(S.maxF,Ftot);
+    const acc=g-Ftot/S.mass;
+    S.v+=acc*dt;
+    S.y-=S.v*dt;
+    if(S.y<z.t0*(1-EPS_MAX)) S.y=z.t0*(1-EPS_MAX);
+    S.epsHist=Math.max(S.epsHist,Math.min((z.t0-S.y)/z.t0,EPS_MAX));
+    if(!S.flags.tissue && S.pAvg>1e5){ S.flags.tissue=true; log('【超过软组织短时耐受阈值 ~0.1 MPa】','bad'); }
+    if(!S.flags.severe && S.pAvg>3e5){ S.flags.severe=true; log('【软组织大面积毁损 ~0.3 MPa】','bad'); }
+    if(!S.flags.rib && S.eps>0.30){ S.flags.rib=true; log('【骨性/胸廓结构连续性失效 · 受压区塌陷】','bad'); }
+    if(S.tc>0.4 && Math.abs(S.v)<0.005 && Math.abs(acc)<0.06){
+      S.phase='done'; S.running=false;
+      document.getElementById('btnStart').disabled=true;
+      document.getElementById('btnStart').textContent='模拟完成';
+      log(`达到静力平衡 · p̄=${(S.pAvg/1e6).toFixed(2)} MPa · 剩余厚度 ${(z.t0*(1-S.eps)*100).toFixed(1)} cm`,'ok');
+      log(`结论：${(S.pAvg/1e5).toFixed(0)}× 软组织耐受阈值 · 冲击峰值载荷 ${(S.maxF/1000).toFixed(0)} kN（静载 ${(W()/1000).toFixed(0)} kN）`,'bad');
+    }
+  }
+}
+
+/* ================= HUD / 图表 / 日志 ================= */
+const $=id=>document.getElementById(id);
+const samples=[]; let lastSampleT=-1;
+function drawChart(){
+  const cv=$('chart'), ctx=cv.getContext('2d');
+  const w=cv.width,hh=cv.height, padL=30,padB=16,padT=6;
+  ctx.clearRect(0,0,w,hh);
+  ctx.font='9px monospace'; ctx.fillStyle='#8b93a0'; ctx.strokeStyle='#232830';
+  const pMax=3.0;
+  for(const [pv,col] of [[0.1,'#ffb224'],[1.0,'#e5484d']]){
+    const y=hh-padB-(pv/pMax)*(hh-padB-padT);
+    ctx.strokeStyle=col; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(w-2,y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillText(pv+' MPa',2,y+3);
+  }
+  ctx.strokeStyle='#232830';
+  ctx.strokeRect(padL,padT,w-padL-2,hh-padB-padT);
+  if(samples.length>1){
+    const tMax=Math.max(samples[samples.length-1].t,0.5);
+    ctx.strokeStyle='#e5484d'; ctx.lineWidth=1.5; ctx.beginPath();
+    samples.forEach((s,i)=>{
+      const x=padL+(s.t/tMax)*(w-padL-4);
+      const y=hh-padB-(Math.min(s.p,pMax)/pMax)*(hh-padB-padT);
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    });
+    ctx.stroke();
+  }
+  ctx.fillStyle='#8b93a0'; ctx.fillText('p̄-t 曲线',padL+4,padT+10);
+}
+function fmtP(pa){ return pa>=1e6 ? (pa/1e6).toFixed(3)+' MPa' : (pa/1e3).toFixed(1)+' kPa'; }
+function updateHUD(){
+  const z=ZONES[S.zone];
+  $('dW').textContent=(W()/1000).toFixed(1)+' kN ('+(S.mass/1000).toFixed(1)+' t)';
+  $('dV').textContent=(S.phase==='fall'?S.v:(S.phase==='ready'?'—':S.vImpact.toFixed(2)+' m/s（触体）'));
+  $('da').textContent=S.A>0?(S.a*100).toFixed(1)+' cm':'—';
+  $('dA').textContent=S.A>0?S.A.toFixed(3)+' m²':'—';
+  $('dP').textContent=fmtP(S.pAvg);
+  $('dPk').textContent=S.A>0?fmtP(S.pAvg*4/Math.PI):'—';
+  $('dEps').textContent=(S.epsHist*100).toFixed(1)+' %';
+  $('dThk').textContent=(z.t0*(1-S.epsHist)*100).toFixed(1)+' cm（初始 '+(z.t0*100).toFixed(0)+' cm）';
+  $('dF').textContent=S.maxF>0?(S.maxF/1000).toFixed(0)+' kN':'—';
+  $('dT').textContent=S.t.toFixed(2)+' s';
+}
+const logEl=$('log');
+function log(msg,cls){
+  const line=document.createElement('div');
+  if(cls) line.className=cls;
+  line.textContent=`[${S.t.toFixed(2)}s] ${msg}`;
+  logEl.appendChild(line);
+  while(logEl.children.length>8) logEl.removeChild(logEl.firstChild);
+}
+
+/* ================= UI 事件 ================= */
+$('zone').onchange=e=>{ S.zone=e.target.value; resetSim(); };
+$('h').oninput=e=>{ S.h=+e.target.value; $('hVal').textContent=S.h.toFixed(2)+' m'; if(S.phase==='ready'){S.y=ZONES[S.zone].t0+S.h; coilGroup.position.y=S.y+R; updateDropLine();} };
+$('m').oninput=e=>{ S.mass=+e.target.value*1000; $('mVal').textContent=e.target.value+' t'; if(S.phase==='ready') log(`质量调整：${e.target.value} t · 重力 ${(W()/1000).toFixed(1)} kN ≈ ${Math.round(e.target.value/1.5)} 辆家用轿车`); };
+$('ts').oninput=e=>{ S.simSpeed=+e.target.value; $('tsVal').textContent=S.simSpeed.toFixed(2)+'×'; };
+$('heat').onchange=()=>{};
+$('wire').onchange=e=>{ bodyGroup.traverse(o=>{ if(o.isMesh) o.material.wireframe=e.target.checked; }); };
+$('btnStart').onclick=()=>{
+  if(S.phase==='ready'){
+    S.phase='fall'; S.running=true;
+    dropLine.visible=false;
+    $('btnStart').textContent='⏸ 暂停';
+    log(`释放钢卷（${(S.mass/1000).toFixed(1)} t · W=${(W()/1000).toFixed(1)} kN）`);
+  } else if(S.phase==='fall'||S.phase==='contact'){
+    S.running=!S.running;
+    $('btnStart').textContent=S.running?'⏸ 暂停':'▶ 继续';
+  }
+};
+$('btnReset').onclick=()=>resetSim();
+
+/* ================= 主循环 ================= */
+resetSim(false);
+log('模型：准静态接触 + 非线性组织本构 + 粘弹性阻尼','ok');
+log(`钢卷质量 ${(S.mass/1000).toFixed(1)} t · 重力 ${(W()/1000).toFixed(1)} kN ≈ 20 辆家用轿车总重`,'warn');
+
+let lastT=performance.now();
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();
+  let dtReal=Math.min((now-lastT)/1000,0.05); lastT=now;
+  if(S.running && (S.phase==='fall'||S.phase==='contact')){
+    const dtTotal=dtReal*S.simSpeed;
+    const n=Math.max(1,Math.min(40,Math.ceil(dtTotal/(1/600))));
+    const dt=dtTotal/n;
+    for(let i=0;i<n;i++) step(dt);
+    // 采样
+    if(S.t-lastSampleT>0.02){ lastSampleT=S.t; samples.push({t:S.t,p:S.pAvg/1e6}); if(samples.length>1500)samples.shift(); }
+    // 形变
+    const z=ZONES[S.zone];
+    const eVis=Math.max(S.epsHist,S.eps);
+    const sigma=Math.max(z.sigmaMin,Math.min(S.a*1.4,z.cap*0.75));
+    applyCrush(eVis, z.cx, sigma, S.pAvg*1.35, $('heat').checked);
+    drawChart();
+  }
+  updateHUD();
+  controls.update();
+  renderer.render(scene,camera);
+}
+animate();
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

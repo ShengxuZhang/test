@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>物理仿真实验室 · Physics Lab — 十二个可交互数值实验</title>
+<style>
+:root{
+  --bg:#070b14; --bg2:#0a101d;
+  --panel:rgba(17,25,44,.78); --panel2:rgba(12,18,33,.92);
+  --line:rgba(136,176,255,.13); --line2:rgba(136,176,255,.24);
+  --text:#e9effa; --sub:#93a7c7; --dim:#5f7396;
+  --cyan:#38e1ff; --cyan-deep:#19b8e6; --amber:#ffb45e; --red:#ff5d73;
+  --green:#3ddc97; --violet:#8f7bff;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","JetBrains Mono",Consolas,monospace;
+  --r:14px; --r-sm:9px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+  font-size:14px; line-height:1.55; overflow-x:hidden;
+}
+body::before{
+  content:""; position:fixed; inset:0; z-index:-2;
+  background:
+    radial-gradient(900px 500px at 12% -8%, rgba(56,225,255,.09), transparent 60%),
+    radial-gradient(1000px 620px at 88% 4%, rgba(143,123,255,.08), transparent 62%),
+    radial-gradient(800px 600px at 50% 118%, rgba(56,225,255,.05), transparent 60%),
+    linear-gradient(180deg,var(--bg2),var(--bg));
+}
+body::after{
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E");
+}
+.svgdefs{position:absolute;width:0;height:0;overflow:hidden}
+.mono{font-family:var(--mono)}
+.cyanc{color:var(--cyan)}
+
+.app{max-width:1560px;margin:0 auto;padding:26px 22px 40px;display:flex;flex-direction:column;gap:26px}
+
+/* ============ 顶栏 ============ */
+.topbar{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:14px}
+.brand .logo{
+  width:48px;height:48px;border-radius:13px;display:grid;place-items:center;color:#031018;
+  background:linear-gradient(135deg,var(--cyan),var(--violet));
+  box-shadow:0 6px 22px rgba(56,225,255,.35);
+}
+.brand h1{font-size:21px;font-weight:800;letter-spacing:1px}
+.brand h1 em{font-style:normal;color:var(--cyan);font-family:var(--mono);font-size:14px;margin-left:8px}
+.brand .sub{font-size:12.5px;color:var(--sub);letter-spacing:.5px;margin-top:2px}
+.toplink{margin-left:auto}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  height:40px;padding:0 16px;border-radius:11px;cursor:pointer;text-decoration:none;
+  border:1px solid var(--line2);background:rgba(20,30,52,.6);color:var(--text);
+  font-size:13px;font-family:inherit;transition:transform .15s,border-color .2s,box-shadow .2s;
+}
+.btn:hover{border-color:rgba(56,225,255,.55);transform:translateY(-1px)}
+.btn .ic{width:16px;height:16px}
+
+/* ============ 分区 ============ */
+.section h2{
+  display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;
+  letter-spacing:2.5px;color:#a9bcdc;margin-bottom:14px;
+}
+.section h2::after{content:"";flex:1;height:1px;background:var(--line)}
+.section h2 .n{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:0}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.card{
+  position:relative;display:block;text-decoration:none;color:var(--text);
+  background:linear-gradient(180deg,rgba(19,27,48,.82),rgba(11,16,30,.86));
+  border:1px solid var(--line);border-radius:var(--r);
+  padding:18px 18px 16px;overflow:hidden;
+  transition:transform .2s,border-color .2s,box-shadow .25s;
+}
+.card:hover{transform:translateY(-3px);border-color:rgba(56,225,255,.45);box-shadow:0 14px 38px rgba(0,0,0,.45),0 0 22px rgba(56,225,255,.08)}
+.card::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--acc,var(--cyan));opacity:.75;
+}
+.card .head{display:flex;align-items:center;gap:11px;margin-bottom:9px}
+.card .badge{
+  width:38px;height:38px;border-radius:10px;display:grid;place-items:center;flex:none;
+  color:var(--acc,var(--cyan));background:rgba(56,225,255,.07);
+  border:1px solid rgba(56,225,255,.18);
+}
+.card .badge .ic{width:19px;height:19px}
+.card h3{font-size:15.5px;font-weight:700}
+.card .en{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:1px}
+.card p{font-size:12.5px;color:var(--sub);line-height:1.7;min-height:40px}
+.card .foot{display:flex;align-items:center;gap:8px;margin-top:11px;flex-wrap:wrap}
+.algo{
+  font-family:var(--mono);font-size:10px;letter-spacing:.5px;padding:2.5px 8px;border-radius:6px;
+  color:var(--dim);border:1px solid var(--line);background:rgba(120,160,255,.05);
+}
+.formula{
+  margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--acc,var(--cyan));opacity:.9;
+}
+.open{font-size:11px;color:var(--dim);letter-spacing:1px}
+.card:hover .open{color:var(--cyan)}
+
+/* ============ 澄清卡 ============ */
+.clarify{
+  display:flex;gap:12px;border-left:3px solid var(--cyan);padding:13px 16px;
+  background:linear-gradient(90deg,rgba(56,225,255,.06),transparent 70%);
+  border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:12.5px;color:var(--sub);line-height:1.8;
+}
+.clarify .ic{margin-top:3px;color:var(--cyan);flex:none}
+.clarify b{color:var(--text)}
+
+/* 入场动画 */
+.anim{opacity:0;transform:translateY(14px);animation:rise .7s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:var(--d,0s)}
+@keyframes rise{to{opacity:1;transform:none}}
+
+/* 各卡配色 */
+.c-cyan{--acc:var(--cyan)} .c-amber{--acc:var(--amber)} .c-green{--acc:var(--green)}
+.c-violet{--acc:var(--violet)} .c-red{--acc:var(--red)}
+.c-amber .badge{color:var(--amber);background:rgba(255,180,94,.07);border-color:rgba(255,180,94,.18)}
+.c-green .badge{color:var(--green);background:rgba(61,220,151,.07);border-color:rgba(61,220,151,.18)}
+.c-violet .badge{color:var(--violet);background:rgba(143,123,255,.07);border-color:rgba(143,123,255,.18)}
+.c-red .badge{color:var(--red);background:rgba(255,93,115,.07);border-color:rgba(255,93,115,.18)}
+
+@media (max-width:760px){
+  .app{padding:16px 14px 30px}
+  .grid{grid-template-columns:1fr}
+  .toplink{margin-left:0;width:100%}
+}
+</style>
+</head>
+<body>
+<svg class="svgdefs" aria-hidden="true">
+  <symbol id="i-atom" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.4"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2 12c2.5-6 5-6 7.5 0s5 6 7.5 0 3.5-4 5 0"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><path d="M4 17c1.5 1 3-2 4.5-1s2.5 3 4 2 2.5-4 4-3 2.5 2 3.5 1"/><circle cx="4" cy="17" r="1.3"/><circle cx="19" cy="16" r="1.3"/><path d="M6 8c2-3 4 1 6-1s4-2 6 1" opacity=".45"/></symbol>
+  <symbol id="i-orbit" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><ellipse cx="12" cy="12" rx="9.5" ry="4.5"/><ellipse cx="12" cy="12" rx="9.5" ry="4.5" transform="rotate(60 12 12)"/><circle cx="21" cy="14.5" r="1.4"/></symbol>
+  <symbol id="i-bh" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5c4 3.5 4 7 0 9.5-4 2.5-4 6 0 9.5" opacity=".7"/><path d="M21.5 12c-3.5 4-7 4-9.5 0-2.5-4-6-4-9.5 0" opacity=".4"/></symbol>
+  <symbol id="i-wing" viewBox="0 0 24 24"><path d="M3 14c5-6 12-8 18-7-2 4-7 7-13 7l-5 3v-3z"/><path d="M2 19h20" opacity=".4"/></symbol>
+  <symbol id="i-vortex" viewBox="0 0 24 24"><path d="M12 12m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0"/><path d="M12 12c0-4 3-6 7-6M12 12c4 0 6 3 6 7M12 12c0 4-3 6-7 6M12 12c-4 0-6-3-6-7" opacity=".75"/></symbol>
+  <symbol id="i-pend" viewBox="0 0 24 24"><path d="M4 3h16"/><path d="M12 3l4.5 8.5"/><circle cx="16.5" cy="12.5" r="1.6"/><path d="M16.5 12.5l-4 6"/><circle cx="12.2" cy="19.5" r="1.6"/></symbol>
+  <symbol id="i-temp" viewBox="0 0 24 24"><path d="M10 4a2 2 0 1 1 4 0v9.5a4.5 4.5 0 1 1-4 0z"/><circle cx="12" cy="17.5" r="1.6"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+</svg>
+
+<div class="app">
+  <header class="topbar anim" style="--d:0s">
+    <div class="brand">
+      <div class="logo"><svg class="ic" style="width:24px;height:24px"><use href="#i-atom"/></svg></div>
+      <div>
+        <h1>物理仿真实验室<em>Physics Lab</em></h1>
+        <div class="sub">十二个可交互数值实验 —— 真实方程、真实积分器，浏览器里直接跑</div>
+      </div>
+    </div>
+    <a class="btn toplink" href="../quantum-jump-sim/index.html">
+      <svg class="ic"><use href="#i-atom"/></svg>姊妹篇 · 量子轨迹模拟器
+    </a>
+  </header>
+
+  <section class="section anim" style="--d:.08s">
+    <h2>波动与场 <span class="n">WAVES &amp; FIELDS</span></h2>
+    <div class="grid">
+      <a class="card c-cyan" href="s01-schrodinger.html">
+        <div class="head"><div class="badge"><svg class="ic"><use href="#i-atom"/></svg></div>
+          <div><h3>薛定谔波包隧穿</h3><div class="en">SCHRODINGER TUNNELING</div></div></div>
+        <p>iℏ∂ψ/∂t = −ℏ²/2m ∂²ψ/∂x² + Vψ。实部虚部双色演化，方势垒 / 谐振子 / 势阱三预设，E&lt;V0 也能穿墙——透射率实时统计。</p>
+        <div class="foot"><span class="algo">split-operator FFT</span><span class="open">进入实验 →</span>
+          <span class="formula">ψ ∝ e^{i(kx−ωt)}</span></div>
+      </a>
+      <a class="card c-cyan" href="s02-fdtd.html">
+        <div class="head"><div class="badge"><svg class="ic"><use href="#i-cpu"/></svg></div>
+          <div><h3>2D 电磁波 FDTD</h3><div class="en">MAXWELL YEE GRID</div></div></div>
+        <p>麦克斯韦方程组时域有限差分，Ez/Hx/Hy 交错网格。点击放置振源，金属缝墙自主衍射，吸收边界无反射。</p>
+        <div class="foot"><span class="algo">Yee · Courant 1/√2</span><span class="open">进入实验 →</span>
+          <span class="formula">∇×E = −∂B/∂t</span></div>
+      </a>
+      <a class="card c-cyan" href="s03-water.html">
+        <div class="head"><div class="badge"><svg class="ic"><use href="#i-activity"/></svg></div>
+          <div><h3>水波 · 惠更斯原理</h3><div class="en">HUYGENS RIPPLE TANK</div></div></div>
+        <p>二维波动方程数值解。点击水面激起圆形波前，直墙反射、抛物面聚焦、双缝分流——每个波前都是二次波源。</p>
+        <div class="foot"><span class="algo">Verlet 波动方程</span><span class="open">进入实验 →</span>
+          <span class="formula">u_tt = c²∇²u</span></div>
+      </a>
+      <a class="card c-cyan" href="s04-chladni.html">
+        <div class="head"><div class="badge"><svg class="ic"><use href="#i-target"/></svg></div>
+          <div><h3>克拉尼图形</h3><div class="en">CHLADNI PLATE MODES</div></div></div>
+        <p>方形板本征模叠加，沙粒被振动最剧烈处抛离、最终停在节线上。拖动频率滑杆，看图案在模态间跳变。</p>
+        <div class="foot"><span class="algo">模态叠加 + 随机游走</span><span class="open">进入实验 →</span>
+          <span class="formula">ω ∝ m² + n²</span></div>
+      </a>
+    </div>
+  </section>
+
+  <section class="section anim" style="--d:.14s">
+    <h2>粒子与统计 <span class="n">PARTICLES &amp; STATISTICS</span></h2>
+    <div class="grid">
+      <a class="card c-amber" href="s05-gas.html">
+        <div class="head"><div class="badge"><svg class="ic"><use href="#i-zap"/></svg></div>
+          <div><h3>分子动理论</h3><div class="en">KINETIC THEORY OF GASES</div></div></div>
+        <p>300 个硬圆盘弹性碰撞，恒温器控温。速率分布从 δ 函数弛豫到麦克斯韦-玻尔兹曼；移开隔板看熵增自由膨胀。</p>
+        <div class="foot"><span class="algo">刚体碰撞 + 恒温器</span><span class="open">进入实验 →</span>
+          <span class="formula">⟨v²⟩ = 3kT/m</span></div>
+      </a>
+      <a class="card c-amber" href="s06-ising.html">
+        <div class="head"><div class="badge"><svg class="ic"><use href="#i-grid"/></svg></div>
+          <div><h3>伊辛模型相变</h3><div class="en">ISING PHASE TRANSITION</div></div></div>
+        <p>64×64 自旋晶格 Metropolis 蒙特卡洛。温度扫过临界点 Tc≈2.269，磁畴从长程有序到湮灭——二级相变现场。</p>
+        <div class="foot"><span class="algo">Metropolis MCMC</span><span class="open">进入实验 →</span>
+          <span class="formula">H = −J Σ sᵢsⱼ</span></div>
+      </a>
+      <a class="card c-amber" href="s07-brownian.html">
+        <div class="head"><div class="badge"><svg class="ic"><use href="#i-dots"/></svg></div>
+          <div><h3>布朗运动</h3><div class="en">BROWNIAN MOTION · LANGEVIN</div></div></div>
+        <p>朗之万方程驱动的随机行走：高亮粒子拖出醉汉轨迹，均方位移线性拟合出的扩散系数与爱因斯坦关系 D=kT/γ 对照。</p>
+        <div class="foot"><span class="algo">Langevin + Box-Muller</span><span class="open">进入实验 →</span>
+          <span class="formula">⟨r²⟩ = 4Dt</span></div>
+      </a>
+    </div>
+  </section>
+
+  <section class="section anim" style="--d:.2s">
+    <h2>混沌与天体 <span class="n">CHAOS &amp; GRAVITY</span></h2>
+    <div class="grid">
+      <a class="card c-violet" href="s09-pendulum.html">
+        <div class="head"><div class="badge"><svg class="ic"><use href="#i-pend"/></svg></div>
+          <div><h3>双摆混沌</h3><div class="en">DOUBLE PENDULUM</div></div></div>
+        <p>拉格朗日方程 RK4 精确积分。初值只差 10⁻⁶ 的两个双摆几秒内分道扬镳；庞加莱截面把相空间切片成分形。</p>
+        <div class="foot"><span class="algo">RK4 + 庞加莱截面</span><span class="open">进入实验 →</span>
+          <span class="formula">λ &gt; 0 → 混沌</span></div>
+      </a>
+      <a class="card c-violet" href="s10-threebody.html">
+        <div class="head"><div class="badge"><svg class="ic"><use href="#i-orbit"/></svg></div>
+          <div><h3>三体问题</h3><div class="en">THREE-BODY PROBLEM</div></div></div>
+        <p>N 体引力 RK4 数值积分。figure-8 舞编、拉格朗日三角、弹射与俘获——也能亲手拖出属于你的不稳定轨道。</p>
+        <div class="foot"><span class="algo">N-body RK4</span><span class="open">进入实验 →</span>
+          <span class="formula">F = Gm₁m₂/r²</span></div>
+      </a>
+      <a class="card c-violet" href="s11-blackhole.html">
+        <div class="head"><div class="badge"><svg class="ic"><use href="#i-bh"/></svg></div>
+          <div><h3>黑洞引力透镜</h3><div class="en">SCHWARZSCHILD LENSING</div></div></div>
+        <p>史瓦西时空光子测地线积分：b&lt;3√3M 的光线坠入视界，其余被弯成爱因斯坦环——偏折角与弱场 4M/b 现场对照。</p>
+        <div class="foot"><span class="algo">测地线 RK4</span><span class="open">进入实验 →</span>
+          <span class="formula">u″ = −u + 3Mu²</span></div>
+      </a>
+    </div>
+  </section>
+
+  <section class="section anim" style="--d:.26s">
+    <h2>流体 <span class="n">FLUID DYNAMICS</span></h2>
+    <div class="grid">
+      <a class="card c-green" href="s08-fluid.html">
+        <div class="head"><div class="badge"><svg class="ic"><use href="#i-vortex"/></svg></div>
+          <div><h3>2D 流体 · 染料涡旋</h3><div class="en">STABLE FLUIDS</div></div></div>
+        <p>Navier-Stokes 半拉格朗日解算器：压力投影保证不可压缩。鼠标搅动染料，看涡丝拉伸、折叠、卷成卡门涡街。</p>
+        <div class="foot"><span class="algo">Stam 96×96 · 20 iter</span><span class="open">进入实验 →</span>
+          <span class="formula">∇·v = 0</span></div>
+      </a>
+      <a class="card c-green" href="s12-airfoil.html">
+        <div class="head"><div class="badge"><svg class="ic"><use href="#i-wing"/></svg></div>
+          <div><h3>机翼势流</h3><div class="en">JOUKOWSKI AIRFOIL</div></div></div>
+        <p>保角变换下的无粘不可压缩绕流：厚度、弯度、攻角三个滑杆捏出翼型，Kutta 条件自动定环量，升力系数实时出曲线。</p>
+        <div class="foot"><span class="algo">保角映射 + 流线积分</span><span class="open">进入实验 →</span>
+          <span class="formula">Cl ≈ 2π sin α</span></div>
+      </a>
+    </div>
+  </section>
+
+  <div class="clarify anim" style="--d:.32s">
+    <svg class="ic"><use href="#i-info"/></svg>
+    <div>
+      <b>所有仿真都是真解算，不是动画：</b>每个页面内嵌对应的控制方程与数值格式（FFT 谱方法、Yee 网格、RK4、Metropolis、半拉格朗日……），
+      页面底部的状态卡展示守恒量与理论对照值。数字对不对，用物理本身验收。
+    </div>
+  </div>
+</div>
+</body>
+</html>

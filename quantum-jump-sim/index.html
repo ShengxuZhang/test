@@ -623,7 +623,7 @@ function jumpDetect(){
 function clearField(){re.fill(0);im.fill(0);}
 function endRun(reason,label){
   state.phase='ended'; state.outcome=label; state.endReason=reason;
-  state.relaunchAt=state.frames+42; stageHold=state.frames+55; stageHoldKey=6;
+  state.relaunchAt=tick+42; stageHold=tick+55; stageHoldKey=6;
 }
 
 /* ---- 阶段 6：终止条件检查 ---- */
@@ -662,6 +662,7 @@ function simFrame(){
   state.frames++;
 }
 let lastSub=0;
+let tick=0; /* 全局时钟：不随轨迹冻结，用于重发调度与高亮计时（frames 在 ended 后停止递增） */
 
 /* ---- 阶段 7：批量统计（与主引擎同一跃迁规则） ---- */
 function overlapLambda(){
@@ -691,7 +692,7 @@ function runBatch(){
   }
   drawChart(res,W);
   addLog('info',`阶段 7 后处理：批量统计完成（21 频点 × 60 轨迹）· 截止能量 E₀=W=${W.toFixed(2)} eV，ℏω<W 时产额恒为 0`);
-  state.batchUntil=state.frames+240;
+  state.batchUntil=tick+240;
   const pMax=res[res.length-1].p;
   $('yieldNote').textContent=`跃迁规则：P 光电 = [1−exp(−(1.2g+0.35)·Λ)·H(ℏω−W)] × 1.2g/(1.2g+0.35)（与主引擎同一竞争通道），当前 g=${g.toFixed(2)}、Λ=${Lam.toFixed(2)}px → 高频端单光子产额 ≈ ${(pMax*100).toFixed(0)}%；红色虚线 = 截止频率 ν₀（ℏν₀=W）`;
 }
@@ -867,9 +868,9 @@ function setChip(k){
 function updateChips(){
   let k;
   if(state.phase==='idle')k=1;
-  else if(state.phase==='ended')k=(state.frames<stageHold&&stageHoldKey!==2)?stageHoldKey:6;
-  else if(state.frames<stageHold&&stageHoldKey!==2)k=stageHoldKey;
-  else if(state.paused&&state.batchUntil>state.frames)k=7;
+  else if(state.phase==='ended')k=(tick<stageHold&&stageHoldKey!==2)?stageHoldKey:6;
+  else if(tick<stageHold&&stageHoldKey!==2)k=stageHoldKey;
+  else if(state.paused&&state.batchUntil>tick)k=7;
   else k=2;
   setChip(k);
 }
@@ -905,7 +906,7 @@ function updatePipeline(){
       :'两段式抽样：① 波包穿越挡板后先抽「透射 T vs 吸收」；② 透射支归一化后才开放 P 探测';
   }
   $('pv23').textContent=`r = ${state.lastR.toFixed(3)}   vs   P总 = ${state.lastP.toFixed(3)}`;
-  const hit=state.frames-lastHit.frame<25;
+  const hit=tick-lastHit.frame<25;
   $('row22').classList.toggle('hit',hit);
   $('row23').classList.toggle('hit',hit);
   $('pv23b').textContent=hit?lastHit.txt:'未命中 → 无事件，波包继续波动演化';
@@ -930,17 +931,18 @@ function updateStatus(){
 }
 /* ---- 主循环 ---- */
 function loop(){
+  tick++;
   const evBefore=flashes.length+electrons.length;
   if(state.phase==='run'&&!state.paused){
     simFrame();
-  }else if(state.phase==='ended'&&state.auto&&!state.paused&&state.frames>=state.relaunchAt){
+  }else if(state.phase==='ended'&&state.auto&&!state.paused&&tick>=state.relaunchAt){
     launchPhoton(true);
     state.outcome=''; state.endReason='';
   }
   if(flashes.length+electrons.length>evBefore){
-    stageHold=state.frames+32;
+    stageHold=tick+32;
     stageHoldKey=(state.phase==='ended'&&state.endReason==='detected')?5:3;
-    lastHit.frame=state.frames;
+    lastHit.frame=tick;
     lastHit.txt=state.endReason==='detected'?'命中 → 探测器点击（光子数探测通道）'
       :state.endReason==='photo'?'命中 → 光电跃迁（能量整份转移 ℏω → 电子）'
       :'命中 → 瑞利散射（光子换方向，继续波动演化）';

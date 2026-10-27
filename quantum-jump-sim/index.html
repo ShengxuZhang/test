@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>量子轨迹模拟器 · Quantum Jump — 波粒二象性统一引擎</title>
+<style>
+:root{
+  --bg:#070b14; --bg2:#0a101d;
+  --panel:rgba(17,25,44,.78); --panel2:rgba(12,18,33,.92);
+  --line:rgba(136,176,255,.13); --line2:rgba(136,176,255,.24);
+  --text:#e9effa; --sub:#93a7c7; --dim:#5f7396;
+  --cyan:#38e1ff; --cyan-deep:#19b8e6; --amber:#ffb45e; --red:#ff5d73;
+  --green:#3ddc97; --violet:#8f7bff;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","JetBrains Mono",Consolas,monospace;
+  --r:14px; --r-sm:9px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+  font-size:14px; line-height:1.55; overflow-x:hidden;
+}
+/* 背景氛围：径向辉光 + 细网格 + 噪点 */
+body::before{
+  content:""; position:fixed; inset:0; z-index:-2;
+  background:
+    radial-gradient(900px 500px at 12% -8%, rgba(56,225,255,.09), transparent 60%),
+    radial-gradient(1000px 620px at 88% 4%, rgba(143,123,255,.08), transparent 62%),
+    radial-gradient(800px 600px at 50% 118%, rgba(56,225,255,.05), transparent 60%),
+    linear-gradient(180deg,var(--bg2),var(--bg));
+}
+body::after{
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E");
+}
+.svgdefs{position:absolute;width:0;height:0;overflow:hidden}
+.hide{display:none!important}
+.mono{font-family:var(--mono)}
+.amber{color:var(--amber)} .green{color:var(--green)} .cyanc{color:var(--cyan)}
+
+.app{max-width:1560px;margin:0 auto;padding:18px 22px 30px;display:flex;flex-direction:column;gap:14px}
+
+/* ============ 顶栏 ============ */
+.topbar{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}
+.brand .logo{
+  width:42px;height:42px;border-radius:12px;display:grid;place-items:center;color:#031018;
+  background:linear-gradient(135deg,var(--cyan),var(--violet));
+  box-shadow:0 6px 22px rgba(56,225,255,.35);
+}
+.brand h1{font-size:19px;font-weight:800;letter-spacing:1px}
+.brand h1 em{font-style:normal;color:var(--cyan);font-family:var(--mono);font-size:14px;margin-left:6px}
+.brand .sub{font-size:12px;color:var(--sub);letter-spacing:.5px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 auto}
+.chip{
+  font-family:var(--mono);font-size:11px;letter-spacing:.5px;padding:5px 11px;border-radius:999px;
+  border:1px solid var(--line);color:var(--dim);white-space:nowrap;transition:all .25s;
+}
+.chip.active{color:var(--cyan);border-color:rgba(56,225,255,.55);background:rgba(56,225,255,.08);box-shadow:0 0 14px rgba(56,225,255,.18)}
+.chip.flash{color:var(--amber);border-color:rgba(255,180,94,.6);background:rgba(255,180,94,.1);box-shadow:0 0 14px rgba(255,180,94,.25)}
+.transport{display:flex;align-items:center;gap:8px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  height:38px;min-width:38px;padding:0 10px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--line2);background:rgba(20,30,52,.6);color:var(--text);
+  font-size:13px;font-family:inherit;transition:transform .15s,border-color .2s,box-shadow .2s,background .2s;
+}
+.btn:hover{border-color:rgba(56,225,255,.55);transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.btn-primary{
+  border:none;color:#04121f;font-weight:700;
+  background:linear-gradient(135deg,#2bdcff,#2b7fff);
+  box-shadow:0 4px 18px rgba(43,160,255,.35);
+}
+.btn-primary:hover{box-shadow:0 6px 24px rgba(43,180,255,.5)}
+.btn.wide{width:100%;margin-top:8px}
+.spd-group{display:flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden}
+.spd{
+  border:none;background:transparent;color:var(--dim);font-family:var(--mono);font-size:11.5px;
+  padding:0 10px;height:38px;cursor:pointer;transition:all .2s;border-right:1px solid var(--line);
+}
+.spd:last-child{border-right:none}
+.spd:hover{color:var(--text)}
+.spd.active{color:var(--cyan);background:rgba(56,225,255,.1)}
+.ic{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic.sm{width:14px;height:14px}
+
+/* ============ 主布局 ============ */
+.layout{display:grid;grid-template-columns:272px minmax(0,1fr) 324px;gap:14px;align-items:start}
+.panel{
+  background:linear-gradient(180deg,rgba(19,27,48,.82),rgba(11,16,30,.86));
+  border:1px solid var(--line);border-radius:var(--r);
+  padding:15px 15px 17px;backdrop-filter:blur(8px);
+  box-shadow:0 10px 34px rgba(0,0,0,.38);
+}
+.panel h2{
+  display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;
+  letter-spacing:2px;color:#a9bcdc;margin-bottom:12px;
+}
+.panel h2 .cnt{margin-left:auto;letter-spacing:0;font-family:var(--mono);font-size:11px;color:var(--dim);font-weight:400}
+.panel h2.mt{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.group{margin-bottom:16px}
+.group:last-child{margin-bottom:0}
+.glabel{font-size:11px;color:var(--dim);letter-spacing:1px;margin-bottom:8px}
+.frow{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--sub)}
+.fv{font-family:var(--mono);font-size:12px;color:var(--cyan)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.seg-btn{
+  padding:9px 6px;border-radius:var(--r-sm);border:1px solid var(--line);cursor:pointer;
+  background:transparent;color:var(--sub);font-size:13px;font-family:inherit;transition:all .2s;
+}
+.seg-btn:hover{border-color:var(--line2);color:var(--text)}
+.seg-btn.active{
+  color:var(--cyan);border-color:rgba(56,225,255,.5);
+  background:linear-gradient(180deg,rgba(56,225,255,.14),rgba(56,225,255,.05));
+  box-shadow:inset 0 0 18px rgba(56,225,255,.06);
+}
+.trow{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--sub);margin-top:9px}
+.trow input{width:16px;height:16px;accent-color:var(--cyan);cursor:pointer}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,rgba(56,225,255,.5),rgba(56,225,255,.1))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#eafaff;margin-top:-5px;box-shadow:0 0 0 3px rgba(56,225,255,.22),0 0 10px rgba(56,225,255,.55)}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:linear-gradient(90deg,rgba(56,225,255,.5),rgba(56,225,255,.1))}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-radius:50%;background:#eafaff;box-shadow:0 0 0 3px rgba(56,225,255,.22),0 0 10px rgba(56,225,255,.55)}
+
+/* ============ 中央画布 ============ */
+.center{display:flex;flex-direction:column;gap:10px;min-width:0}
+.canvas-wrap{
+  position:relative;border-radius:var(--r);overflow:hidden;
+  border:1px solid var(--line);background:#04070e;
+  box-shadow:0 12px 40px rgba(0,0,0,.45), inset 0 0 80px rgba(20,50,90,.12);
+}
+#field{display:block;width:100%;aspect-ratio:2/1}
+.hint{
+  position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;
+  font-size:14px;color:var(--sub);letter-spacing:1px;line-height:2;
+  background:rgba(5,8,15,.55);backdrop-filter:blur(3px);transition:opacity .4s;
+  pointer-events:none;
+}
+.hint b{color:var(--cyan);font-weight:600}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--sub);padding:0 4px}
+.lg-item{display:inline-flex;align-items:center;gap:7px}
+.sw{width:12px;height:12px;border-radius:3px;flex:none}
+.sw.intensity{background:linear-gradient(90deg,#05070e,#2a5f8a,#9fdcff)}
+.sw.phase{border-radius:50%;background:conic-gradient(#ff4d4d,#ffe14d,#4dff88,#4de1ff,#4d6aff,#c94dff,#ff4d4d)}
+.dimv{color:var(--dim);font-family:var(--mono)}
+.screen-panel .screen-cap{font-size:11px;color:var(--dim);margin-top:8px;letter-spacing:.5px}
+#screen{display:block;width:100%;height:150px}
+
+/* ============ 右栏：流水线 / 日志 / 统计 ============ */
+.right .pstep{
+  border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 11px;margin-bottom:8px;
+  background:rgba(13,20,37,.5);transition:border-color .25s,box-shadow .25s;
+}
+.pstep.hit{border-color:rgba(255,180,94,.65);box-shadow:0 0 16px rgba(255,180,94,.15)}
+.pt{display:flex;align-items:baseline;gap:8px;font-size:12.5px;font-weight:600;color:#c6d5ef}
+.pt span{font-weight:400;font-size:10.5px;color:var(--dim);letter-spacing:.5px}
+.pv{font-size:11.5px;color:var(--sub);margin-top:5px}
+.pv.mono{font-size:12px;color:var(--text)}
+.pnote{font-size:10.5px;color:var(--dim);margin-top:4px}
+.pnote.alert{color:var(--amber)}
+.prow{display:grid;grid-template-columns:56px 1fr 52px;gap:8px;align-items:center;margin-top:6px;font-size:11px}
+.pl{color:var(--sub)}
+.pvv{font-family:var(--mono);font-size:11px;color:var(--cyan);text-align:right}
+.pbar{height:7px;border-radius:4px;background:rgba(120,160,255,.1);overflow:hidden;margin-top:7px}
+.pbar.slim{margin-top:0;height:6px}
+.pbar.tall{height:8px;width:100%;margin:6px 0 4px}
+.pbar span{display:block;height:100%;width:0%;border-radius:4px;background:linear-gradient(90deg,var(--cyan-deep),var(--cyan));transition:width .15s}
+.pbar span.amb{background:linear-gradient(90deg,#e08a3c,var(--amber))}
+.pbar span.grn{background:linear-gradient(90deg,#2aa876,var(--green))}
+.pbar span.red{background:linear-gradient(90deg,#c73a4c,var(--red))}
+.eventlog{max-height:236px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px}
+.eventlog::-webkit-scrollbar{width:5px}
+.eventlog::-webkit-scrollbar-thumb{background:rgba(120,160,255,.25);border-radius:3px}
+.ev{
+  font-size:11.5px;color:var(--sub);line-height:1.5;
+  animation:logIn .35s ease;
+}
+@keyframes logIn{from{opacity:0;transform:translateX(-8px)}}
+.ev .t{font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-right:6px}
+.ev .tag{
+  display:inline-block;font-size:9.5px;padding:1px 6px;border-radius:5px;margin-right:6px;
+  letter-spacing:1px;vertical-align:1px;
+}
+.tag.init{color:var(--cyan);background:rgba(56,225,255,.1)}
+.tag.wave{color:#9db1d4;background:rgba(140,170,220,.1)}
+.tag.jump{color:var(--amber);background:rgba(255,180,94,.13)}
+.tag.abs{color:var(--red);background:rgba(255,93,115,.12)}
+.tag.det{color:var(--green);background:rgba(61,220,151,.12)}
+.tag.info{color:var(--violet);background:rgba(143,123,255,.13)}
+#yieldChart{display:block;width:100%;height:150px}
+
+/* ============ 底部 ============ */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:10px}
+.card{
+  background:linear-gradient(180deg,rgba(19,27,48,.75),rgba(11,16,30,.8));
+  border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;
+}
+.card .k{font-size:10.5px;color:var(--dim);letter-spacing:1.5px;margin-bottom:4px}
+.card .k2{font-size:10.5px;color:var(--dim);margin-top:3px}
+.card .v{font-size:17px;font-weight:600;font-family:var(--mono)}
+.lamp{display:flex;align-items:center;gap:8px;font-size:14px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);flex:none}
+.dot.off{background:var(--red);box-shadow:0 0 10px var(--red)}
+.clarify{
+  display:flex;gap:11px;border-left:3px solid var(--cyan);padding:11px 15px;
+  background:linear-gradient(90deg,rgba(56,225,255,.06),transparent 70%);
+  border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:12.5px;color:var(--sub);line-height:1.8;
+}
+.clarify .ic{margin-top:3px;color:var(--cyan)}
+.clarify b{color:var(--text)}
+
+/* 场景切换显隐 */
+body:not([data-scene=photo]) .only-photo{display:none}
+body:not([data-scene=slit]) .only-slit{display:none}
+
+/* 入场动画 */
+.anim{opacity:0;transform:translateY(14px);animation:rise .7s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:var(--d,0s)}
+@keyframes rise{to{opacity:1;transform:none}}
+
+/* ============ 响应式 ============ */
+@media (max-width:1180px){
+  .layout{grid-template-columns:1fr}
+  .center{order:1}.right{order:2}.side.left{order:3}
+  .chips{margin:0}
+}
+@media (max-width:640px){
+  .app{padding:12px 12px 24px}
+  .brand h1{font-size:16px}
+  .transport{width:100%;justify-content:flex-end}
+}
+</style>
+</head>
+<body data-scene="photo">
+<svg class="svgdefs" aria-hidden="true">
+  <symbol id="i-atom" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.4"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-step" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><line x1="21" y1="6" x2="14" y2="6"/><line x1="10" y1="6" x2="3" y2="6"/><line x1="21" y1="12" x2="12" y2="12"/><line x1="8" y1="12" x2="3" y2="12"/><line x1="21" y1="18" x2="16" y2="18"/><line x1="12" y1="18" x2="3" y2="18"/><line x1="14" y1="4" x2="14" y2="8"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="16" y1="16" x2="16" y2="20"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></symbol>
+</svg>
+
+<div class="app">
+  <header class="topbar anim" style="--d:0s">
+    <div class="brand">
+      <div class="logo"><svg class="ic"><use href="#i-atom"/></svg></div>
+      <div>
+        <h1>量子轨迹模拟器<em>Quantum Jump</em></h1>
+        <div class="sub">波粒二象性统一引擎 —— 同一套叠加态演化，波动与粒子之间只隔一次随机抽样</div>
+      </div>
+    </div>
+    <div class="chips">
+      <span class="chip active" id="ch1">1 · 初始化</span>
+      <span class="chip" id="ch2">2 · 幺正演化</span>
+      <span class="chip" id="ch3">3 · 概率与抽样</span>
+      <span class="chip" id="ch5">5 · 跃迁 / 探测</span>
+      <span class="chip" id="ch6">6 · 终止</span>
+      <span class="chip" id="ch7">7 · 后处理</span>
+    </div>
+    <div class="transport">
+      <button class="btn btn-primary" id="btnPlay" title="开始 / 暂停（空格）">
+        <svg class="ic" id="icPlay"><use href="#i-play"/></svg>
+        <svg class="ic hide" id="icPause"><use href="#i-pause"/></svg>
+      </button>
+      <button class="btn" id="btnStep" title="单步推进一个 Δt（S）"><svg class="ic"><use href="#i-step"/></svg></button>
+      <button class="btn" id="btnReset" title="重置实验（R）"><svg class="ic"><use href="#i-reset"/></svg></button>
+      <div class="spd-group" id="spdGroup">
+        <button class="spd" data-spd="0.5">×½</button>
+        <button class="spd active" data-spd="1">×1</button>
+        <button class="spd" data-spd="2">×2</button>
+        <button class="spd" data-spd="4">×4</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 左：参数 -->
+    <aside class="panel side left anim" style="--d:.08s">
+      <h2><svg class="ic sm"><use href="#i-sliders"/></svg>实验控制</h2>
+      <div class="group">
+        <div class="glabel">场景 · 同一套引擎，不同耦合通道</div>
+        <div class="seg">
+          <button class="seg-btn active" data-scene="photo">光电效应</button>
+          <button class="seg-btn" data-scene="slit">双缝干涉</button>
+        </div>
+      </div>
+      <div class="group">
+        <div class="glabel">光子初态 —— 场的叠加态波包</div>
+        <div class="frow"><label for="inE">光子能量 ℏω</label><span class="fv" id="vE">3.00 eV</span></div>
+        <input type="range" id="inE" min="1" max="5" step="0.05" value="3">
+        <div class="frow"><label for="inSigma">波包横向宽度 σ</label><span class="fv" id="vSigma">14 px</span></div>
+        <input type="range" id="inSigma" min="8" max="36" step="1" value="14">
+        <div class="trow"><label for="tgAuto">连续发射光子（批量轨迹）</label><input type="checkbox" id="tgAuto" checked></div>
+      </div>
+      <div class="group only-photo">
+        <div class="glabel">光电材料 · 右侧金属板</div>
+        <div class="frow"><label for="inW">逸出功 W</label><span class="fv" id="vW">2.00 eV</span></div>
+        <input type="range" id="inW" min="1" max="3.5" step="0.05" value="2">
+        <div class="frow"><label for="inG">光-电子耦合强度 g</label><span class="fv" id="vG">0.35</span></div>
+        <input type="range" id="inG" min="0.05" max="1" step="0.05" value="0.35">
+        <div class="frow"><label for="inPlate">金属板位置 x</label><span class="fv" id="vPlate">200 px</span></div>
+        <input type="range" id="inPlate" min="150" max="230" step="2" value="200">
+        <div class="trow"><label for="tgScatter">开启瑞利散射通道（阶段 3）</label><input type="checkbox" id="tgScatter"></div>
+      </div>
+      <div class="group only-slit">
+        <div class="glabel">双缝挡板与探测屏</div>
+        <div class="frow"><label for="inSlitD">缝间距 d</label><span class="fv" id="vSlitD">44 px</span></div>
+        <input type="range" id="inSlitD" min="24" max="72" step="2" value="44">
+        <div class="frow"><label for="inSlitA">缝宽 a</label><span class="fv" id="vSlitA">12 px</span></div>
+        <input type="range" id="inSlitA" min="6" max="22" step="1" value="12">
+        <div class="frow"><label for="inEta">探测效率 η</label><span class="fv" id="vEta">0.90</span></div>
+        <input type="range" id="inEta" min="0.2" max="1" step="0.05" value="0.9">
+      </div>
+      <div class="group">
+        <div class="glabel">轨迹操作</div>
+        <button class="btn wide" id="btnLaunch"><svg class="ic sm"><use href="#i-zap"/></svg>发射单光子 · 重新初始化</button>
+      </div>
+    </aside>
+
+    <!-- 中：场演化画布 -->
+    <section class="center anim" style="--d:.16s">
+      <div class="canvas-wrap">
+        <canvas id="field" width="1024" height="512"></canvas>
+        <div class="hint" id="hint">阶段 1 · 初始化<br>点击 <b>发射单光子</b> 或 <b>开始</b> —— 构造光子场的叠加态波包</div>
+      </div>
+      <div class="legend">
+        <span class="lg-item"><span class="sw intensity"></span>亮度 = |ψ|² 几率幅强度</span>
+        <span class="lg-item"><span class="sw phase"></span>色相 = 相位 arg ψ（复数振幅自带相位，干涉全靠它）</span>
+        <span class="lg-item dimv" id="lamNote">λ ≈ 18 px · 由 ℏω 决定</span>
+      </div>
+      <div class="panel screen-panel only-slit">
+        <h2><svg class="ic sm"><use href="#i-target"/></svg>探测屏 · 随机点击累积成干涉条纹<span class="cnt" id="photonCount">已发射 0 · 点击 0</span></h2>
+        <canvas id="screen" width="1024" height="150"></canvas>
+        <div class="screen-cap">每一个点 = 一次「光子数探测」随机抽样命中；波包先干涉（波动），探测器一个个随机出点（粒子），直方图随光子数累积逼近条纹</div>
+      </div>
+    </section>
+
+    <!-- 右：流水线 / 日志 / 统计 -->
+    <aside class="panel side right anim" style="--d:.24s">
+      <h2><svg class="ic sm"><use href="#i-cpu"/></svg>本步执行流水线 · 主循环</h2>
+      <div class="pstep" id="row21">
+        <div class="pt">2.1 幺正演化 <span>确定性 · 纯波动</span></div>
+        <div class="pv" id="pv21">待启动 —— 场叠加态按哈密顿量平滑演化</div>
+        <div class="pbar"><span id="normBarFill"></span></div>
+        <div class="pnote" id="pv21b">场归一化模长 ‖ψ‖² = 1.000</div>
+      </div>
+      <div class="pstep" id="row22">
+        <div class="pt">2.2 计算通道概率 <span>本 Δt 内</span></div>
+        <div class="prow" id="rowPhoto"><span class="pl">P 光电</span><div class="pbar slim"><span id="pbPhoto" class="amb"></span></div><span class="pvv" id="pvPhoto">0.0000</span></div>
+        <div class="prow" id="rowAbs"><span class="pl">P 吸收</span><div class="pbar slim"><span id="pbAbs" class="red"></span></div><span class="pvv" id="pvAbs">0.0000</span></div>
+        <div class="prow" id="rowScat"><span class="pl">P 散射</span><div class="pbar slim"><span id="pbScat"></span></div><span class="pvv" id="pvScat">0.0000</span></div>
+        <div class="prow" id="rowDet"><span class="pl">P 探测</span><div class="pbar slim"><span id="pbDet" class="grn"></span></div><span class="pvv" id="pvDet">0.0000</span></div>
+        <div class="pnote" id="pv22b">通道开关由物理规则决定：ℏω ≤ W 时 P 光电 ≡ 0（耦合概率直接为零，非硬编码 if）</div>
+      </div>
+      <div class="pstep" id="row23">
+        <div class="pt">2.3 随机抽样 <span>抛均匀随机数 r ∈ [0,1)</span></div>
+        <div class="pv mono" id="pv23">r = —</div>
+        <div class="pnote" id="pv23b">等待演化…</div>
+      </div>
+      <h2 class="mt"><svg class="ic sm"><use href="#i-activity"/></svg>事件日志 · 轨迹历史</h2>
+      <div class="eventlog" id="log"></div>
+      <div class="only-photo" id="chartCard">
+        <h2 class="mt"><svg class="ic sm"><use href="#i-chart"/></svg>阶段 7 · 后处理统计</h2>
+        <canvas id="yieldChart" width="600" height="300"></canvas>
+        <div class="pnote" id="yieldNote" style="margin-top:8px">与主引擎同一跃迁规则批量跑轨迹：光电子产额 vs 光子频率 ℏω，低于 W 处自动出现截止频率 ν₀</div>
+        <button class="btn wide" id="btnBatch"><svg class="ic sm"><use href="#i-chart"/></svg>批量统计 21 × 60 条轨迹</button>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="anim" style="--d:.32s">
+    <div class="cards">
+      <div class="card">
+        <div class="k">光电通道状态</div>
+        <div class="v lamp"><span class="dot" id="lampOpen"></span><span id="stOpen" style="font-size:14px">通道开启</span></div>
+        <div class="k2" id="stEW">ℏω = 3.00 eV ＞ W = 2.00 eV</div>
+      </div>
+      <div class="card">
+        <div class="k">场归一化模长 ‖ψ‖²</div>
+        <div class="pbar tall"><span id="normBar"></span></div>
+        <div class="k2 mono" id="stNorm">1.000</div>
+      </div>
+      <div class="card"><div class="k">已发射光子</div><div class="v" id="stPhotons">0</div><div class="k2">每一次发射 = 一条量子轨迹</div></div>
+      <div class="card"><div class="k">光电子事件</div><div class="v amber" id="stElectrons">0</div><div class="k2" id="stLastKe">动能 Ek = ℏω − W</div></div>
+      <div class="card"><div class="k">探测点击</div><div class="v green" id="stDetects">0</div><div class="k2">粒子性 · 离散采样点</div></div>
+      <div class="card"><div class="k">当前状态</div><div class="v" id="stState" style="font-size:14px;padding-top:3px">待初始化</div><div class="k2" id="stOutcome">—</div></div>
+    </div>
+    <div class="clarify" style="margin-top:12px">
+      <svg class="ic sm"><use href="#i-info"/></svg>
+      <div><b>重要澄清：</b>这个程序没有在模拟「光子在空间飞行」——程序在演化的是【光子场的叠加振幅】。不是一个粒子在移动，而是场的激发分布在移动；只有在跃迁 / 探测抽样命中的那一瞬间，才会出现一个离散的粒子事件。实现路线：量子轨迹法（纯态 + 每步随机跃迁，单条历史轨迹）；与之等价的另一条路线是 Lindblad 密度矩阵主方程（确定性演化，直接得到统计平均，看不到单条随机事件）。</div>
+    </div>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ================= 核心引擎：量子轨迹法 =================
+   场状态 = 复数叠加态 ψ(x,y)（256×128 格点，每个格点是一个模式的复数振幅）
+   每帧：①幺正演化(频谱空间相位旋转) ②算通道概率 ③抛随机数抽样 */
+const $=(id)=>document.getElementById(id);
+const GW=256, GH=128, N=GW*GH, DET_X=243;
+const re=new Float32Array(N), im=new Float32Array(N);
+const wk=new Float32Array(N);            // 每个模式的角频率 -|k|（c=1）
+const absorbMask=new Float32Array(N);    // 盒子边界吸收（飞出边界）
+const obstacleMask=new Float32Array(N);  // 挡板 / 金属板吸收
+const ampBuf=new Float32Array(N);
+const state={
+  scene:'photo', E:3, sigma:14, W:2, g:0.35, plateX:200,
+  slitD:44, slitA:12, eta:0.9, scatterOn:false, auto:true,
+  speed:1, paused:false, phase:'idle',        // idle | run | ended
+  frames:0, t0:0, norm:1, baseline:1, barrierLoss:0,
+  slitSampled:false, slitArrived:false, barPeak:0, normArrival:1, lossStart:0,
+  photons:0, electrons:0, detects:0, relaunchAt:0,
+  lastR:0, lastP:0, maxAmp:0.05, hitUntil:-99, batchUntil:-99, lastKe:0,
+};
+const P={photo:0,nr:0,scat:0,det:0};
+
+/* ---- 频谱空间（模式空间）准备工作 ---- */
+(function(){
+  for(let y=0;y<GH;y++){
+    const ky=(y<GH/2?y:y-GH)*(2*Math.PI/GH);
+    for(let x=0;x<GW;x++){
+      const kx=(x<GW/2?x:x-GW)*(2*Math.PI/GW);
+      wk[y*GW+x]=-Math.hypot(kx,ky);
+    }
+  }
+  const EW=10;
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+    const d=Math.min(x,GW-1-x,y,GH-1-y);
+    let f=1;
+    if(d<EW){const t=d/EW;f=t*t*(3-2*t)*0.9995+0.0005;}
+    absorbMask[y*GW+x]=f;
+  }
+})();
+
+/* ---- FFT（2 的幂，行×列两次一维变换） ---- */
+function makeTw(n){const h=n>>1,c=new Float32Array(h),s=new Float32Array(h);
+  for(let i=0;i<h;i++){c[i]=Math.cos(-2*Math.PI*i/n);s[i]=Math.sin(-2*Math.PI*i/n);}return{c,s};}
+const TW256=makeTw(256), TW128=makeTw(128);
+function fft1d(a,b,n,stride,off,tw,inv){
+  for(let i=1,j=0;i<n;i++){
+    let bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;
+    if(i<j){const p=off+i*stride,q=off+j*stride;
+      let t=a[p];a[p]=a[q];a[q]=t;t=b[p];b[p]=b[q];b[q]=t;}
+  }
+  for(let len=2;len<=n;len<<=1){
+    const half=len>>1,step=n/len;
+    for(let i=0;i<n;i+=len){
+      for(let k=0;k<half;k++){
+        const ti=k*step,wr=tw.c[ti],wi=inv?-tw.s[ti]:tw.s[ti];
+        const p=off+(i+k)*stride,q=p+half*stride;
+        const xr=a[q]*wr-b[q]*wi, xi=a[q]*wi+b[q]*wr;
+        a[q]=a[p]-xr;b[q]=b[p]-xi;a[p]+=xr;b[p]+=xi;
+      }
+    }
+  }
+  if(inv){const s=1/n;for(let i=0;i<n;i++){const p=off+i*stride;a[p]*=s;b[p]*=s;}}
+}
+function fft2(a,b,inv){
+  for(let y=0;y<GH;y++)fft1d(a,b,GW,1,y*GW,TW256,inv);
+  for(let x=0;x<GW;x++)fft1d(a,b,GH,GW,x,TW128,inv);
+}
+
+/* ---- 2.1 幺正演化：确定性，纯波动 ---- */
+function evolve(dt){
+  fft2(re,im,false);                       // → 模式空间
+  for(let i=0;i<N;i++){                    // 每个模式旋转相位 e^{-i|k|Δt}
+    const a=wk[i]*dt,c=Math.cos(a),s=Math.sin(a);
+    const r=re[i],m=im[i];
+    re[i]=r*c-m*s; im[i]=r*s+m*c;
+  }
+  fft2(re,im,true);                        // → 回到位置空间
+  for(let i=0;i<N;i++){re[i]*=absorbMask[i];im[i]*=absorbMask[i];}
+}
+function calcNorm(){let s=0;for(let i=0;i<N;i++)s+=re[i]*re[i]+im[i]*im[i];return s;}
+function sumRegion(x0,x1){let s=0;for(let y=0;y<GH;y++)for(let x=x0;x<x1;x++){const i=y*GW+x;s+=re[i]*re[i]+im[i]*im[i];}return s;}
+
+/* ---- 挡板 / 金属板（材料耦合区域） ---- */
+function rebuildMasks(){
+  obstacleMask.fill(1);
+  if(state.scene!=='photo'){
+    const yc=GH/2,d2=state.slitD/2,a2=state.slitA/2;
+    for(let y=0;y<GH;y++){
+      const inSlit=Math.abs(Math.abs(y-yc)-d2)<a2;
+      if(!inSlit)for(let x=152;x<158;x++)obstacleMask[y*GW+x]=0.25;
+    }
+  }
+  /* 光电模式：金属板不做连续掩膜吸收 —— 光电 / 无辐射吸收 / 散射
+     全部作为平行的随机跃迁通道按到达几率流抽样（阶段 3 的分支语义） */
+}
+
+/* ---- 阶段 1：初始化光子叠加态波包 ---- */
+function launchPhoton(silent){
+  re.fill(0);im.fill(0);
+  const lam=36/state.E+6, k0=2*Math.PI/lam;
+  const x0=36, yc=GH/2, sx=26, sy=state.sigma;
+  let nrm=0;
+  for(let y=0;y<GH;y++){
+    const dy=(y-yc)/sy;
+    for(let x=0;x<GW;x++){
+      const dx=(x-x0)/sx, g=Math.exp(-0.5*(dx*dx+dy*dy)), i=y*GW+x;
+      re[i]=g*Math.cos(k0*x); im[i]=g*Math.sin(k0*x); nrm+=g*g;
+    }
+  }
+  const s=1/Math.sqrt(nrm);
+  for(let i=0;i<N;i++){re[i]*=s;im[i]*=s;}
+  state.t0=state.frames; state.phase='run'; state.norm=1; state.baseline=1;
+  state.barrierLoss=0;
+  state.slitSampled=false; state.slitArrived=false; state.barPeak=0; state.normArrival=1; state.lossStart=0;
+  state.photons++;
+  addLog('init',`第 ${state.photons} 个光子发射：构造叠加态波包（横向 σ=${sy}px，λ≈${lam.toFixed(0)}px，能量 ℏω=${state.E.toFixed(2)}eV）`);
+  updateStatus();
+}
+
+/* ---- 2.2 + 2.3：算通道概率 → 抛随机数抽样 ---- */
+const cdf=new Float32Array(GH);
+function channels(sub){
+  P.photo=0;P.nr=0;P.scat=0;P.det=0;
+  if(state.scene==='photo'){
+    /* 波包到达金属板表面的几率流（板前 4 列），三个平行通道按它抽样 */
+    const o=sumRegion(state.plateX-4,state.plateX);
+    if(state.E>state.W) P.photo=Math.min(0.5,1.2*state.g*o*sub);   // ℏω>W 通道才打开
+    P.nr=Math.min(0.5,0.35*o*sub);                                  // 普通无辐射吸收
+    if(state.scatterOn) P.scat=Math.min(0.4,0.25*o*sub);            // 瑞利散射
+    const pt=P.photo+P.nr+P.scat;
+    const r=Math.random(); state.lastR=r; state.lastP=pt;
+    if(r<P.photo) jumpPhoto();
+    else if(r<P.photo+P.nr) jumpNonRad();
+    else if(r<pt) jumpScatter();
+  }else{
+    /* 双缝：两段式抽样 —— 先「挡板透射 vs 吸收」跳，透射支归一化后再开放探测通道 */
+    if(!state.slitSampled){
+      const inBar=sumRegion(152,158);
+      if(inBar>state.barPeak)state.barPeak=inBar;
+      if(!state.slitArrived&&inBar>0.01){
+        state.slitArrived=true;
+        state.normArrival=state.norm; state.lossStart=state.barrierLoss;
+        addLog('wave','波包抵达双缝挡板：几率流开始分流，穿越完成后做「透射 vs 吸收」抽样');
+      }
+      if(state.slitArrived&&state.barPeak>0.02&&inBar<0.004){
+        const beyond=sumRegion(159,243);
+        const eaten=state.barrierLoss-state.lossStart;
+        const T=beyond/Math.max(beyond+eaten,1e-9);
+        const r=Math.random(); state.lastR=r; state.lastP=T;
+        state.slitSampled=true;
+        if(r<T){
+          for(let y=0;y<GH;y++)for(let x=0;x<159;x++){re[y*GW+x]=0;im[y*GW+x]=0;}
+          const cur=calcNorm();
+          const s=Math.sqrt(state.normArrival/Math.max(cur,1e-12));
+          for(let i=0;i<N;i++){re[i]*=s;im[i]*=s;}
+          state.norm=state.normArrival; state.baseline=state.normArrival;
+          addLog('wave',`挡板通道抽样：r=${r.toFixed(3)} < T=${T.toFixed(3)} → 透射分支归一化为整个光子，两列子波继续叠加干涉（衍射）`);
+        }else{
+          addLog('abs',`光子被双缝挡板吸收：透射概率 T=${T.toFixed(3)}，本次 r=${r.toFixed(3)} ≥ T（大部分光子都会被挡板吃掉）`);
+          clearField(); endRun('barrier','被挡板吸收');
+        }
+      }
+    }else if(state.phase==='run'){
+      let s=0;
+      for(let y=0;y<GH;y++){const i=y*GW+DET_X;const v=re[i]*re[i]+im[i]*im[i];s+=v;cdf[y]=s;}
+      P.det=Math.min(0.85,6*state.eta*s*sub);                 // 光子数探测通道
+      const r=Math.random(); state.lastR=r; state.lastP=P.det;
+      if(r<P.det) jumpDetect();
+    }
+  }
+}
+
+/* ---- 跃迁事件（粒子性瞬间） ---- */
+function jumpPhoto(){
+  const xc=state.plateX-1; let best=GH/2,bv=-1;
+  for(let y=0;y<GH;y++){const i=y*GW+xc,v=re[i]*re[i]+im[i]*im[i];if(v>bv){bv=v;best=y;}}
+  const ke=state.E-state.W; state.lastKe=ke;
+  flashes.push({x:state.plateX+4,y:best,r:3,max:34,c:'amber'});
+  electrons.push({x:state.plateX-4,y:best,vx:-(0.9+Math.random()*0.5),vy:(Math.random()-0.5)*0.6,ke,life:1});
+  addLog('jump',`光电跃迁！光子场湮灭，逸出光电子：Ek=ℏω−W=${ke.toFixed(2)} eV @ (x=${state.plateX}, y=${best-GH/2})`);
+  clearField(); endRun('photo','光电跃迁 · 抽样命中');
+  state.electrons++;
+}
+function jumpNonRad(){
+  const xc=state.plateX-1; let sw=0,wy=0;
+  for(let y=0;y<GH;y++){const i=y*GW+xc,v=re[i]*re[i]+im[i]*im[i];sw+=v;wy+=y*v;}
+  const yc=sw>0?wy/sw:GH/2;
+  flashes.push({x:xc,y:yc,r:3,max:26,c:'red'});
+  addLog('abs','无辐射吸收：光子场湮灭，能量沉积为热，无电子逸出（与光电通道平行竞争）');
+  clearField(); endRun('absorbed','无辐射吸收');
+}
+function jumpScatter(){
+  const xc=state.plateX-1; let sw=0,wy=0;
+  for(let y=0;y<GH;y++){const i=y*GW+xc,v=re[i]*re[i]+im[i]*im[i];sw+=v;wy+=y*v;}
+  const yc=sw>0?wy/sw:GH/2, keep=state.norm, ph=Math.random()*Math.PI*2;
+  re.fill(0);im.fill(0);
+  let nrm=0;
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+    const dx=x-xc,dy=y-yc,g=Math.exp(-(dx*dx+dy*dy)/32),i=y*GW+x;
+    re[i]=g*Math.cos(ph);im[i]=g*Math.sin(ph);nrm+=g*g;
+  }
+  const s=Math.sqrt(Math.max(keep,1e-6)/nrm);
+  for(let i=0;i<N;i++){re[i]*=s;im[i]*=s;}
+  state.norm=keep; state.baseline=keep;
+  flashes.push({x:xc,y:yc,r:3,max:26,c:'cyan'});
+  addLog('jump','瑞利散射：光子未被湮灭，各模式振幅重置为新方向波包，继续波动演化（平行通道）');
+}
+function jumpDetect(){
+  const target=Math.random()*cdf[GH-1]; let y=GH-1;
+  for(let i=0;i<GH;i++){if(cdf[i]>=target){y=i;break;}}
+  flashes.push({x:DET_X+4,y,r:3,max:26,c:'green'});
+  dots.push(y); hist[Math.min(63,Math.floor(y/2))]++;
+  addLog('det',`探测器点击：横向位置 y=${y-GH/2} 记录一个光点，光子湮灭（第 ${state.detects+1} 次探测）`);
+  clearField(); endRun('detected','探测命中 · 阶段 5');
+  state.detects++;
+}
+function clearField(){re.fill(0);im.fill(0);}
+function endRun(reason,label){
+  state.phase='ended'; state.outcome=label; state.endReason=reason;
+  state.relaunchAt=state.frames+42; stageHold=state.frames+55; stageHoldKey=6;
+}
+
+/* ---- 阶段 6：终止条件检查 ---- */
+function endCheck(){
+  if(state.phase!=='run')return;
+  if(state.norm<0.02*state.baseline){
+    if(state.scene==='photo'){
+      addLog('abs','光子深入板体后耗散：整段几率流内未命中任何跃迁通道，能量沉积为热，无电子逸出');
+      endRun('absorbed','无辐射吸收');
+    }else{
+      addLog('wave','波包强度耗散 / 飞出模拟盒子边界（终止条件 2）');
+      endRun('escaped','飞出边界');
+    }
+  }else if(state.frames-state.t0>2400){
+    addLog('info','到达预设最大模拟时长（终止条件 3）');
+    endRun('timeout','超时终止');
+  }
+}
+
+/* ---- 一个时间步（主循环一轮） ---- */
+function simFrame(){
+  const sub=state.speed<1?((state.frames&1)===0?1:0):state.speed;
+  let subEff=0;
+  for(let s=0;s<sub;s++){evolve(1);subEff++;}
+  let nBar0=0;
+  if(state.scene==='slit') nBar0=sumRegion(152,158);
+  for(let i=0;i<N;i++){re[i]*=obstacleMask[i];im[i]*=obstacleMask[i];}
+  if(state.scene==='slit') state.barrierLoss+=nBar0-sumRegion(152,158);
+  state.norm=calcNorm();
+  if(subEff>0&&state.phase==='run'){
+    channels(subEff);
+    lastSub=subEff;
+    if(state.phase==='run') endCheck();
+    stageHoldKey=2;
+  }
+  state.frames++;
+}
+let lastSub=0;
+
+/* ---- 阶段 7：批量统计（与主引擎同一跃迁规则） ---- */
+function overlapLambda(){
+  const sx=26; let L=0;
+  for(let c=state.plateX-90;c<=state.plateX+98;c++){
+    let o=0;
+    for(let x=state.plateX-4;x<state.plateX;x++){
+      const dx=(x-c)/sx; o+=Math.exp(-0.5*dx*dx)/(sx*Math.sqrt(2*Math.PI));
+    }
+    L+=o;
+  }
+  return L;
+}
+function runBatch(){
+  const Lam=overlapLambda(), W=state.W, g=state.g, res=[];
+  for(let E=1;E<=5.001;E+=0.2){
+    let p=0;
+    if(E>W){
+      const ease=Math.min(1,0.3+0.7*(E-W)/(5-W));
+      /* 与主引擎同一竞争规则：先抽「有没有事件」（光电+吸收），再按速率比分配 */
+      const pFire=1-Math.exp(-(1.2*g+0.35)*Lam*ease);
+      p=pFire*(1.2*g/(1.2*g+0.35));
+    }
+    let hits=0;
+    for(let t=0;t<60;t++){if(Math.random()<p)hits++;}
+    res.push({E,y:hits/60,p});
+  }
+  drawChart(res,W);
+  addLog('info',`阶段 7 后处理：批量统计完成（21 频点 × 60 轨迹）· 截止能量 E₀=W=${W.toFixed(2)} eV，ℏω<W 时产额恒为 0`);
+  state.batchUntil=state.frames+240;
+  const pMax=res[res.length-1].p;
+  $('yieldNote').textContent=`跃迁规则：P 光电 = [1−exp(−(1.2g+0.35)·Λ)·H(ℏω−W)] × 1.2g/(1.2g+0.35)（与主引擎同一竞争通道），当前 g=${g.toFixed(2)}、Λ=${Lam.toFixed(2)}px → 高频端单光子产额 ≈ ${(pMax*100).toFixed(0)}%；红色虚线 = 截止频率 ν₀（ℏν₀=W）`;
+}
+/*__JS_CORE_END__*/
+/* ================= 渲染层 ================= */
+const flashes=[], electrons=[], dots=[];
+const hist=new Float32Array(64);
+const cv=$('field'), ctx=cv.getContext('2d');
+const off=document.createElement('canvas'); off.width=GW; off.height=GH;
+const octx=off.getContext('2d');
+const img=octx.createImageData(GW,GH);
+const SX=4, SY=4;
+/* 相位→颜色 LUT（HSV 色环，S=0.85） */
+const phaseLUT=(()=>{const lut=new Uint8Array(512*3);
+  for(let i=0;i<512;i++){
+    const h=i/512, sec=Math.floor(h*6)%6, f=h*6-Math.floor(h*6), s=0.85, v=1;
+    const p=v*(1-s), q=v*(1-f*s), t=v*(1-(1-f)*s);
+    const rgb=sec===0?[v,t,p]:sec===1?[q,v,p]:sec===2?[p,v,t]:sec===3?[p,q,v]:sec===4?[t,p,v]:[v,p,q];
+    lut[i*3]=rgb[0]*255; lut[i*3+1]=rgb[1]*255; lut[i*3+2]=rgb[2]*255;
+  }
+  return lut;
+})();
+function drawField(){
+  const d=img.data; let m=1e-6;
+  for(let i=0;i<N;i++){
+    const a=Math.sqrt(re[i]*re[i]+im[i]*im[i]);
+    ampBuf[i]=a; if(a>m)m=a;
+  }
+  state.maxAmp=Math.max(m, state.maxAmp*0.985, 1e-4);
+  const gain=1/state.maxAmp;
+  for(let i=0;i<N;i++){
+    const j=i*4, b=Math.min(1,Math.pow(ampBuf[i]*gain,0.6));
+    if(b<0.005){d[j]=5;d[j+1]=8;d[j+2]=15;d[j+3]=255;continue;}
+    const ph=Math.atan2(im[i],re[i]);
+    const idx=(((ph+Math.PI)/(2*Math.PI)*511)|0)*3;
+    d[j]=phaseLUT[idx]*b; d[j+1]=phaseLUT[idx+1]*b; d[j+2]=phaseLUT[idx+2]*b; d[j+3]=255;
+  }
+  octx.putImageData(img,0,0);
+}
+function draw(){
+  drawField();
+  ctx.fillStyle='#04070e'; ctx.fillRect(0,0,1024,512);
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(off,0,0,1024,512);
+  ctx.strokeStyle='rgba(120,160,255,0.05)'; ctx.lineWidth=1;
+  ctx.beginPath();
+  for(let gx=0;gx<=1024;gx+=64){ctx.moveTo(gx,0);ctx.lineTo(gx,512);}
+  for(let gy=0;gy<=512;gy+=64){ctx.moveTo(0,gy);ctx.lineTo(1024,gy);}
+  ctx.stroke();
+  ctx.font='12px ui-monospace,Consolas,monospace';
+  /* 单光子源 */
+  ctx.fillStyle='rgba(56,225,255,0.9)'; ctx.fillRect(0,238,6,36);
+  ctx.fillStyle='rgba(56,225,255,0.75)'; ctx.fillText('单光子源',12,232);
+  if(state.scene==='photo'){
+    const px=state.plateX*SX;
+    const grad=ctx.createLinearGradient(px,0,px+32,0);
+    grad.addColorStop(0,'#5b6f96'); grad.addColorStop(0.5,'#2c3852'); grad.addColorStop(1,'#1b2438');
+    ctx.fillStyle=grad; ctx.fillRect(px,0,32,512);
+    ctx.fillStyle='rgba(190,215,255,0.5)'; ctx.fillRect(px,0,2,512);
+    ctx.save(); ctx.translate(px-8,70); ctx.rotate(-Math.PI/2);
+    ctx.fillStyle='rgba(180,200,235,0.75)';
+    ctx.fillText(`金属板 · 逸出功 W=${state.W.toFixed(2)} eV`,0,0);
+    ctx.restore();
+  }else{
+    const bx=152*SX, bw=6*SX, yc=256, d2=state.slitD/2*SY, a2=state.slitA/2*SY;
+    ctx.fillStyle='#39466a';
+    ctx.fillRect(bx,0,bw,yc-d2-a2);
+    ctx.fillRect(bx,yc-d2+a2,bw,2*(d2-a2));
+    ctx.fillRect(bx,yc+d2+a2,bw,512-(yc+d2+a2));
+    ctx.fillStyle='rgba(200,220,255,0.6)';
+    ctx.fillText(`双缝挡板 d=${state.slitD} a=${state.slitA}`,bx-24,22);
+    const dg=ctx.createLinearGradient(DET_X*SX-6,0,DET_X*SX+16,0);
+    dg.addColorStop(0,'rgba(61,220,151,0)'); dg.addColorStop(1,'rgba(61,220,151,0.3)');
+    ctx.fillStyle=dg; ctx.fillRect(DET_X*SX-6,0,22,512);
+    ctx.fillStyle='rgba(61,220,151,0.85)'; ctx.fillRect(DET_X*SX+10,0,3,512);
+    ctx.fillText('探测屏',DET_X*SX-26,494);
+  }
+  /* 闪光环（跃迁 / 探测瞬间） */
+  for(let i=flashes.length-1;i>=0;i--){
+    const f=flashes[i]; f.r+=3.2;
+    const al=1-f.r/f.max;
+    if(al<=0){flashes.splice(i,1);continue;}
+    ctx.beginPath(); ctx.arc(f.x*SX,f.y*SY,f.r*2,0,7);
+    ctx.strokeStyle=f.c==='amber'?`rgba(255,180,94,${al})`:f.c==='green'?`rgba(61,220,151,${al})`:f.c==='red'?`rgba(255,93,115,${al})`:`rgba(56,225,255,${al})`;
+    ctx.lineWidth=2.5; ctx.stroke();
+  }
+  /* 光电子（粒子事件产物） */
+  for(let i=electrons.length-1;i>=0;i--){
+    const e=electrons[i]; e.x+=e.vx; e.y+=e.vy; e.life-=0.007;
+    if(e.life<=0){electrons.splice(i,1);continue;}
+    const ex=e.x*SX, ey=e.y*SY;
+    ctx.beginPath(); ctx.moveTo(ex,ey); ctx.lineTo(ex-e.vx*12,ey-e.vy*12);
+    ctx.strokeStyle=`rgba(255,180,94,${e.life*0.4})`; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(ex,ey,5,0,7);
+    ctx.fillStyle=`rgba(255,180,94,${e.life})`;
+    ctx.shadowColor='rgba(255,180,94,0.9)'; ctx.shadowBlur=14;
+    ctx.fill(); ctx.shadowBlur=0;
+    if(e.life>0.15){ctx.fillStyle=`rgba(255,200,130,${e.life})`;ctx.fillText(`e- Ek=${e.ke.toFixed(2)}eV`,ex+9,ey-8);}
+  }
+  /* 比例尺 */
+  ctx.strokeStyle='rgba(150,175,215,0.5)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(20,496); ctx.lineTo(84,496); ctx.stroke();
+  ctx.fillStyle='rgba(150,175,215,0.6)'; ctx.fillText('64 px',24,490);
+}
+/* 探测屏：散点 + 累积直方图 */
+const scv=$('screen'), sctx=scv.getContext('2d');
+function drawScreen(){
+  sctx.fillStyle='rgba(8,13,24,0.95)'; sctx.fillRect(0,0,1024,150);
+  const yc=GH/2, m1=(yc-state.slitD/2)/GH*1024, m2=(yc+state.slitD/2)/GH*1024;
+  sctx.strokeStyle='rgba(140,170,220,0.25)'; sctx.setLineDash([4,5]);
+  sctx.beginPath(); sctx.moveTo(m1,10); sctx.lineTo(m1,140); sctx.moveTo(m2,10); sctx.lineTo(m2,140); sctx.stroke();
+  sctx.setLineDash([]);
+  let mh=1; for(let i=0;i<64;i++)if(hist[i]>mh)mh=hist[i];
+  const bw=1024/64;
+  for(let i=0;i<64;i++){
+    const h=hist[i]/mh*106;
+    if(h>0.5){
+      const g=sctx.createLinearGradient(0,150-h,0,150);
+      g.addColorStop(0,'rgba(61,220,151,0.85)'); g.addColorStop(1,'rgba(61,220,151,0.12)');
+      sctx.fillStyle=g; sctx.fillRect(i*bw+1,150-h,bw-2,h);
+    }
+  }
+  const n=dots.length, show=Math.min(n,180);
+  for(let k=0;k<show;k++){
+    const y=dots[n-1-k], x=(y+0.5)/GH*1024, py=14+((k*37)%92);
+    sctx.beginPath(); sctx.arc(x,py,2.2,0,7);
+    sctx.fillStyle=`rgba(140,255,200,${0.22+0.6*(1-k/show)})`;
+    sctx.fill();
+  }
+  sctx.font='11px ui-monospace,Consolas,monospace';
+  sctx.fillStyle='rgba(150,175,215,0.7)';
+  sctx.fillText('横向位置 y ->',12,142);
+}
+/* 产额统计图 */
+const ycv=$('yieldChart'), yctx=ycv.getContext('2d');
+function drawChart(res,W){
+  const w=ycv.width, h=ycv.height, L=46, R=12, T=18, B=34;
+  yctx.fillStyle='rgba(8,13,24,0.9)'; yctx.fillRect(0,0,w,h);
+  yctx.strokeStyle='rgba(140,170,220,0.4)'; yctx.lineWidth=1;
+  yctx.beginPath(); yctx.moveTo(L,T); yctx.lineTo(L,h-B); yctx.lineTo(w-R,h-B); yctx.stroke();
+  yctx.font='10px ui-monospace,Consolas,monospace';
+  yctx.fillStyle='rgba(150,175,215,0.85)';
+  yctx.fillText('hω (eV)',w-R-48,h-12);
+  yctx.save(); yctx.translate(14,T+60); yctx.rotate(-Math.PI/2); yctx.fillText('光电子产额',0,0); yctx.restore();
+  const x0=1, x1=5.2, iw=w-L-R, ih=h-B-T;
+  const bw2=iw/res.length*0.6;
+  for(const r of res){
+    const px=L+(r.E-x0)/(x1-x0)*iw, py=(h-B)-r.y*ih;
+    yctx.fillStyle='rgba(56,225,255,0.75)';
+    yctx.fillRect(px-bw2/2,py,bw2,(h-B)-py);
+  }
+  const cx=L+(W-x0)/(x1-x0)*iw;
+  yctx.strokeStyle='rgba(255,93,115,0.9)'; yctx.setLineDash([5,4]);
+  yctx.beginPath(); yctx.moveTo(cx,T); yctx.lineTo(cx,h-B); yctx.stroke(); yctx.setLineDash([]);
+  yctx.fillStyle='rgba(255,93,115,0.95)';
+  yctx.fillText('截止 v0 (E=W)',cx+5,T+10);
+  yctx.fillStyle='rgba(150,175,215,0.85)';
+  for(let e=1;e<=5;e++){const px=L+(e-x0)/(x1-x0)*iw;yctx.fillText(String(e),px-3,h-B+14);}
+  for(const f of [0,0.5,1]){const py=(h-B)-f*ih;yctx.fillText(f.toFixed(1),18,py+3);}
+}
+/*__JS_RENDER_END__*/
+/* ================= UI 层：芯片 / 日志 / 流水线 / 主循环 / 绑定 ================= */
+const chips={1:$('ch1'),2:$('ch2'),3:$('ch3'),5:$('ch5'),6:$('ch6'),7:$('ch7')};
+let stageHold=-99, stageHoldKey=2, curStage=1;
+const lastHit={frame:-999, txt:''};
+function setChip(k){
+  if(curStage===k)return;
+  for(const key in chips)chips[key].classList.remove('active','flash');
+  chips[k].classList.add('active');
+  if(k===3||k===5)chips[k].classList.add('flash');
+  curStage=k;
+}
+function updateChips(){
+  let k;
+  if(state.phase==='idle')k=1;
+  else if(state.phase==='ended')k=(state.frames<stageHold&&stageHoldKey!==2)?stageHoldKey:6;
+  else if(state.frames<stageHold&&stageHoldKey!==2)k=stageHoldKey;
+  else if(state.paused&&state.batchUntil>state.frames)k=7;
+  else k=2;
+  setChip(k);
+}
+const logEl=$('log');
+function tagLabel(t){return{init:'初始化',wave:'波动',jump:'跃迁',abs:'吸收',det:'探测',info:'统计'}[t]||t;}
+function addLog(tag,msg){
+  const div=document.createElement('div'); div.className='ev';
+  div.innerHTML=`<span class="t">t=${String(state.frames).padStart(4,'0')}</span><span class="tag ${tag}">${tagLabel(tag)}</span>${msg}`;
+  logEl.prepend(div);
+  while(logEl.children.length>80)logEl.lastChild.remove();
+}
+function updatePipeline(){
+  const running=state.phase==='run'&&!state.paused;
+  $('pv21').textContent=running?`Δt 推进 ×${lastSub||state.speed} · 全部 ${N} 个模式复数振幅相位旋转`:'待启动 / 已暂停';
+  $('normBarFill').style.width=Math.min(100,state.norm/state.baseline*100)+'%';
+  $('pv21b').textContent=`场归一化模长 ‖ψ‖² = ${state.norm.toFixed(3)}（初始 ${state.baseline.toFixed(3)}）`;
+  if(state.scene==='photo'){
+    $('rowDet').classList.add('hide');
+    $('rowPhoto').classList.remove('hide');
+    $('rowAbs').classList.remove('hide');
+    $('rowScat').classList.toggle('hide',!state.scatterOn);
+    $('pbPhoto').style.width=Math.min(100,P.photo*250)+'%'; $('pvPhoto').textContent=P.photo.toFixed(4);
+    $('pbAbs').style.width=Math.min(100,P.nr*250)+'%'; $('pvAbs').textContent=P.nr.toFixed(4);
+    $('pbScat').style.width=Math.min(100,P.scat*250)+'%'; $('pvScat').textContent=P.scat.toFixed(4);
+    $('pv22b').textContent=state.E>state.W
+      ?'通道开启：ℏω > W → 光电 / 无辐射吸收 / 散射为平行竞争通道，按到达几率流抽样'
+      :'通道关闭：ℏω ≤ W → P 光电 ≡ 0，只剩无辐射吸收与散射竞争（物理规则使然）';
+  }else{
+    $('rowPhoto').classList.add('hide'); $('rowAbs').classList.add('hide'); $('rowScat').classList.add('hide'); $('rowDet').classList.remove('hide');
+    $('pbDet').style.width=Math.min(100,P.det*140)+'%'; $('pvDet').textContent=P.det.toFixed(4);
+    $('pv22b').textContent=state.slitSampled
+      ?'透射支已归一化 · 探测通道开放：P ∝ 探测屏上的 |ψ|² × 效率 η，命中位置按 I(y) 抽样'
+      :'两段式抽样：① 波包穿越挡板后先抽「透射 T vs 吸收」；② 透射支归一化后才开放 P 探测';
+  }
+  $('pv23').textContent=`r = ${state.lastR.toFixed(3)}   vs   P总 = ${state.lastP.toFixed(3)}`;
+  const hit=state.frames-lastHit.frame<25;
+  $('row22').classList.toggle('hit',hit);
+  $('row23').classList.toggle('hit',hit);
+  $('pv23b').textContent=hit?lastHit.txt:'未命中 → 无事件，波包继续波动演化';
+  $('pv23b').classList.toggle('alert',hit);
+}
+function updateStatus(){
+  $('stPhotons').textContent=state.photons;
+  $('stElectrons').textContent=state.electrons;
+  $('stDetects').textContent=state.detects;
+  $('stNorm').textContent=state.norm.toFixed(3);
+  $('normBar').style.width=Math.min(100,state.norm/state.baseline*100)+'%';
+  $('stState').textContent=state.phase==='idle'?'待初始化':state.paused?'已暂停':state.phase==='run'?'演化中 · 波动':(state.outcome||'轨迹结束');
+  $('stOutcome').textContent=state.phase==='ended'?(state.endReason||'—'):'—';
+  const open=state.E>state.W;
+  $('lampOpen').classList.toggle('off',!open);
+  $('stOpen').textContent=open?'通道开启':'通道关闭';
+  $('stEW').textContent=`ℏω = ${state.E.toFixed(2)} eV ${open?'＞':'≤'} W = ${state.W.toFixed(2)} eV`;
+  $('stLastKe').textContent=state.electrons>0?`最近一次 Ek = ${state.lastKe.toFixed(2)} eV`:'动能 Ek = ℏω − W';
+  $('photonCount').textContent=`已发射 ${state.photons} · 点击 ${state.detects}`;
+  $('lamNote').textContent=`λ ≈ ${(36/state.E+6).toFixed(0)} px · 由 ℏω 决定`;
+  $('hint').style.opacity=state.phase==='idle'?1:0;
+}
+/* ---- 主循环 ---- */
+function loop(){
+  const evBefore=flashes.length+electrons.length;
+  if(state.phase==='run'&&!state.paused){
+    simFrame();
+  }else if(state.phase==='ended'&&state.auto&&!state.paused&&state.frames>=state.relaunchAt){
+    launchPhoton(true);
+    state.outcome=''; state.endReason='';
+  }
+  if(flashes.length+electrons.length>evBefore){
+    stageHold=state.frames+32;
+    stageHoldKey=(state.phase==='ended'&&state.endReason==='detected')?5:3;
+    lastHit.frame=state.frames;
+    lastHit.txt=state.endReason==='detected'?'命中 → 探测器点击（光子数探测通道）'
+      :state.endReason==='photo'?'命中 → 光电跃迁（能量整份转移 ℏω → 电子）'
+      :'命中 → 瑞利散射（光子换方向，继续波动演化）';
+  }
+  draw();
+  if(state.scene==='slit')drawScreen();
+  updatePipeline(); updateChips(); updateStatus();
+  requestAnimationFrame(loop);
+}
+/* ---- 控件绑定 ---- */
+function syncPlayIcon(){
+  const playing=state.phase==='run'&&!state.paused;
+  $('icPlay').classList.toggle('hide',playing);
+  $('icPause').classList.toggle('hide',!playing);
+}
+$('btnPlay').onclick=()=>{
+  if(state.phase==='idle'){state.outcome='';state.endReason='';launchPhoton(false);}
+  else state.paused=!state.paused;
+  syncPlayIcon();
+};
+$('btnStep').onclick=()=>{
+  if(state.phase==='idle'){state.outcome='';state.endReason='';launchPhoton(false);state.paused=true;}
+  else{state.paused=true;simFrame();}
+  syncPlayIcon();
+};
+function resetAll(){
+  state.phase='idle'; state.paused=false;
+  state.outcome=''; state.endReason='';
+  state.photons=0; state.electrons=0; state.detects=0;
+  state.norm=1; state.baseline=1; state.maxAmp=0.05;
+  clearField(); flashes.length=0; electrons.length=0; dots.length=0; hist.fill(0);
+  addLog('info','实验已重置：清空光子场与全部事件记录');
+  syncPlayIcon(); updateStatus();
+}
+$('btnReset').onclick=resetAll;
+$('btnLaunch').onclick=()=>{
+  state.outcome=''; state.endReason='';
+  launchPhoton(false); state.paused=false; syncPlayIcon();
+};
+document.querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active',x===b));
+  state.scene=b.dataset.scene;
+  document.body.dataset.scene=state.scene;
+  rebuildMasks(); resetAll();
+  addLog('info',state.scene==='photo'
+    ?'场景切换：光电效应 —— 耦合通道 = 光电跃迁（+可选瑞利散射 / 无辐射吸收）'
+    :'场景切换：双缝干涉 —— 耦合通道 = 挡板透射衍射 + 光子数探测');
+});
+function relaunchLive(){
+  if(state.phase==='run'&&!state.paused){state.outcome='';state.endReason='';launchPhoton(true);}
+}
+function bind(id,vid,fmt,fn){
+  const el=$(id);
+  el.addEventListener('input',()=>{
+    const v=parseFloat(el.value);
+    $(vid).textContent=fmt(v); fn(v);
+  });
+}
+bind('inE','vE',v=>v.toFixed(2)+' eV',v=>{state.E=v;updateStatus();relaunchLive();});
+bind('inSigma','vSigma',v=>v+' px',v=>{state.sigma=v;relaunchLive();});
+bind('inW','vW',v=>v.toFixed(2)+' eV',v=>{state.W=v;updateStatus();});
+bind('inG','vG',v=>v.toFixed(2),v=>{state.g=v;});
+bind('inPlate','vPlate',v=>v+' px',v=>{state.plateX=v;rebuildMasks();});
+bind('inSlitD','vSlitD',v=>v+' px',v=>{state.slitD=v;rebuildMasks();});
+bind('inSlitA','vSlitA',v=>v+' px',v=>{state.slitA=v;rebuildMasks();});
+bind('inEta','vEta',v=>v.toFixed(2),v=>{state.eta=v;});
+$('tgAuto').addEventListener('change',e=>state.auto=e.target.checked);
+$('tgScatter').addEventListener('change',e=>state.scatterOn=e.target.checked);
+$('spdGroup').addEventListener('click',e=>{
+  const b=e.target.closest('.spd'); if(!b)return;
+  document.querySelectorAll('.spd').forEach(x=>x.classList.toggle('active',x===b));
+  state.speed=parseFloat(b.dataset.spd);
+});
+$('btnBatch').onclick=runBatch;
+window.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  if(e.code==='Space'){e.preventDefault();$('btnPlay').click();}
+  else if(e.key==='s'||e.key==='S')$('btnStep').click();
+  else if(e.key==='r'||e.key==='R')$('btnReset').click();
+});
+/* ---- 启动 ---- */
+rebuildMasks();
+state.outcome=''; state.endReason='';
+addLog('info','引擎就绪：量子轨迹法 · 纯态叠加 + 每步随机抽样，阶段 1–7 全流程可观测');
+syncPlayIcon(); updateStatus(); updatePipeline();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
